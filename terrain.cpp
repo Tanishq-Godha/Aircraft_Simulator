@@ -4,6 +4,28 @@
 #include <GL/glut.h>
 #include <cmath>
 
+float getVoxelHeight(float x, float z);
+
+namespace {
+
+void drawVoxelColumn(float x, float z, float cellSize) {
+    float h = getVoxelHeight(x + cellSize * 0.5f, z + cellSize * 0.5f);
+
+    if (h <= BLOCK_SIZE * 2) glColor3f(0.1f, 0.35f, 0.85f);
+    else if (h <= BLOCK_SIZE * 3) glColor3f(0.85f, 0.85f, 0.6f);
+    else if (h <= BLOCK_SIZE * 7) glColor3f(0.3f, 0.7f, 0.25f);
+    else if (h <= BLOCK_SIZE * 11) glColor3f(0.55f, 0.55f, 0.55f);
+    else glColor3f(0.95f, 0.95f, 0.95f);
+
+    glPushMatrix();
+    glTranslatef(x + cellSize * 0.5f, h * 0.5f, z + cellSize * 0.5f);
+    glScalef(cellSize, h, cellSize);
+    glutSolidCube(1.0f);
+    glPopMatrix();
+}
+
+}
+
 float hash(float x, float y) {
     float h = sin(x * 12.9898f + y * 78.233f) * 43758.5453123f;
     return h - floor(h);
@@ -42,25 +64,31 @@ float getVoxelHeight(float x, float z) {
 }
 
 void drawVoxelTerrain() {
-    float startX = floor(planeX / BLOCK_SIZE) * BLOCK_SIZE - 6000;
-    float startZ = floor(planeZ / BLOCK_SIZE) * BLOCK_SIZE - 6000;
+    float nearRadius = 3000.0f;
+    float farRadius = 7800.0f;
+    float nearStep = BLOCK_SIZE;
+    float farStep = BLOCK_SIZE * 3.0f;
 
-    for (float x = startX; x < startX + 12000; x += BLOCK_SIZE) {
-        for (float z = startZ; z < startZ + 12000; z += BLOCK_SIZE) {
+    float nearStartX = floor((planeX - nearRadius) / nearStep) * nearStep;
+    float nearStartZ = floor((planeZ - nearRadius) / nearStep) * nearStep;
 
-            float h = getVoxelHeight(x + BLOCK_SIZE/2, z + BLOCK_SIZE/2);
+    for (float x = nearStartX; x <= planeX + nearRadius; x += nearStep) {
+        for (float z = nearStartZ; z <= planeZ + nearRadius; z += nearStep) {
+            drawVoxelColumn(x, z, nearStep);
+        }
+    }
 
-            if (h <= BLOCK_SIZE * 2) glColor3f(0.1,0.35,0.85);
-            else if (h <= BLOCK_SIZE * 3) glColor3f(0.85,0.85,0.6);
-            else if (h <= BLOCK_SIZE * 7) glColor3f(0.3,0.7,0.25);
-            else if (h <= BLOCK_SIZE * 11) glColor3f(0.55,0.55,0.55);
-            else glColor3f(0.95,0.95,0.95);
+    float farStartX = floor((planeX - farRadius) / farStep) * farStep;
+    float farStartZ = floor((planeZ - farRadius) / farStep) * farStep;
 
-            glPushMatrix();
-            glTranslatef(x + BLOCK_SIZE/2, h/2, z + BLOCK_SIZE/2);
-            glScalef(BLOCK_SIZE, h, BLOCK_SIZE);
-            glutSolidCube(1);
-            glPopMatrix();
+    for (float x = farStartX; x <= planeX + farRadius; x += farStep) {
+        for (float z = farStartZ; z <= planeZ + farRadius; z += farStep) {
+            if (std::fabs(x - planeX) <= nearRadius &&
+                std::fabs(z - planeZ) <= nearRadius) {
+                continue;
+            }
+
+            drawVoxelColumn(x, z, farStep);
         }
     }
 }

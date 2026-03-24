@@ -58,6 +58,8 @@ int main(int argc, char** argv) {
     glutIdleFunc(updatePhysics);
     glutKeyboardFunc(keyDown);
     glutKeyboardUpFunc(keyUp);
+    glutSpecialFunc(specialKeyDown);
+    glutSpecialUpFunc(specialKeyUp);
 
     glutMainLoop();
 }

@@ -18,5 +18,8 @@ void init() {
     glFogf(GL_FOG_START, 5000.0f); glFogf(GL_FOG_END, 12000.0f);
 
     quadric = gluNewQuadric(); gluQuadricNormals(quadric, GLU_SMOOTH); 
-    for(int i=0; i<256; i++) keys[i] = false;
+    for (int i = 0; i < 256; ++i) {
+        keys[i] = false;
+        specialKeys[i] = false;
+    }
 }
