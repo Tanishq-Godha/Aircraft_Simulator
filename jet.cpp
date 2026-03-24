@@ -14,8 +14,102 @@ float clamp01(float value) {
     return value;
 }
 
+float clampf(float value, float minValue, float maxValue) {
+    if (value < minValue) return minValue;
+    if (value > maxValue) return maxValue;
+    return value;
+}
+
+float approach(float current, float target, float rate, float dt) {
+    float alpha = clampf(rate * dt, 0.0f, 1.0f);
+    return current + (target - current) * alpha;
+}
+
+struct ControlSurfaceState {
+    bool initialized;
+    int lastTickMs;
+    float flapAngle;
+    float aileronAngle;
+    float elevatorAngle;
+    float rudderAngle;
+};
+
+ControlSurfaceState& getControlSurfaceState() {
+    static ControlSurfaceState state = { false, 0, 0.0f, 0.0f, 0.0f, 0.0f };
+    return state;
+}
+
 void setMaterial(const GLfloat* mat) {
     glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, mat);
+}
+
+void drawHingedSurface(const GLfloat* mat,
+                       float r, float g, float b,
+                       float hingeX, float hingeY, float hingeZ,
+                       float angleX, float angleY,
+                       float offsetX, float offsetY, float offsetZ,
+                       float sizeX, float sizeY, float sizeZ) {
+    setMaterial(mat);
+    glColor3f(r, g, b);
+    glPushMatrix();
+    glTranslatef(hingeX, hingeY, hingeZ);
+    if (angleY != 0.0f) {
+        glRotatef(angleY, 0.0f, 1.0f, 0.0f);
+    }
+    if (angleX != 0.0f) {
+        glRotatef(angleX, 1.0f, 0.0f, 0.0f);
+    }
+    glTranslatef(offsetX, offsetY, offsetZ);
+    glScalef(sizeX, sizeY, sizeZ);
+    glutSolidCube(1.0f);
+    glPopMatrix();
+}
+
+void updateControlSurfaceAnimation(float& flapAngle,
+                                   float& aileronAngle,
+                                   float& elevatorAngle,
+                                   float& rudderAngle) {
+    ControlSurfaceState& state = getControlSurfaceState();
+
+    int nowMs = glutGet(GLUT_ELAPSED_TIME);
+    float dt = 0.016f;
+    if (state.lastTickMs != 0) {
+        dt = (nowMs - state.lastTickMs) * 0.001f;
+        dt = clampf(dt, 0.001f, 0.05f);
+    }
+    state.lastTickMs = nowMs;
+
+    float targetFlap = flaps * 28.0f;
+    float targetAileron = clampf((-roll * 0.32f) +
+                                 (keys['a'] ? 8.0f : 0.0f) -
+                                 (keys['d'] ? 8.0f : 0.0f),
+                                 -18.0f, 18.0f);
+    float targetElevator = clampf((-pitch * 0.35f) +
+                                  (keys['w'] ? -9.0f : 0.0f) +
+                                  (keys['s'] ? 9.0f : 0.0f),
+                                  -16.0f, 16.0f);
+    float targetRudder = clampf((keys['q'] ? 14.0f : 0.0f) -
+                                (keys['e'] ? 14.0f : 0.0f) +
+                                (roll / 45.0f) * 4.0f,
+                                -18.0f, 18.0f);
+
+    if (!state.initialized) {
+        state.flapAngle = targetFlap;
+        state.aileronAngle = targetAileron;
+        state.elevatorAngle = targetElevator;
+        state.rudderAngle = targetRudder;
+        state.initialized = true;
+    } else {
+        state.flapAngle = approach(state.flapAngle, targetFlap, 5.0f, dt);
+        state.aileronAngle = approach(state.aileronAngle, targetAileron, 9.0f, dt);
+        state.elevatorAngle = approach(state.elevatorAngle, targetElevator, 8.0f, dt);
+        state.rudderAngle = approach(state.rudderAngle, targetRudder, 8.0f, dt);
+    }
+
+    flapAngle = state.flapAngle;
+    aileronAngle = state.aileronAngle;
+    elevatorAngle = state.elevatorAngle;
+    rudderAngle = state.rudderAngle;
 }
 
 void drawDoorLeaf(float side, float width, float length, float openAngle) {
@@ -323,6 +417,12 @@ void drawDetailedJet() {
     GLfloat mat_gold[] = { 0.85f, 0.65f, 0.15f, 1.0f };
     GLfloat mat_grey[] = { 0.70f, 0.70f, 0.75f, 1.0f };
     GLfloat mat_dark[] = { 0.15f, 0.15f, 0.15f, 1.0f };
+    float flapAngle = 0.0f;
+    float aileronAngle = 0.0f;
+    float elevatorAngle = 0.0f;
+    float rudderAngle = 0.0f;
+
+    updateControlSurfaceAnimation(flapAngle, aileronAngle, elevatorAngle, rudderAngle);
 
     setMaterial(mat_white);
     glColor3f(0.95f, 0.95f, 0.95f);
@@ -397,7 +497,6 @@ void drawDetailedJet() {
     glVertex3f(-0.7f, -0.28f, 2.8f);
     glEnd();
 
-    float flapAngle = flaps * 28.0f;
     setMaterial(mat_white);
     glColor3f(0.95f, 0.95f, 0.95f);
     glPushMatrix();
@@ -405,13 +504,24 @@ void drawDetailedJet() {
     glRotatef(-flapAngle, 1.0f, 0.0f, 0.0f);
     glBegin(GL_QUADS);
     glNormal3f(0.0f, 0.3f, 1.0f);
-    glVertex3f(0.85f, 0.0f, 0.0f); glVertex3f(5.50f, 0.12f, 0.75f);
-    glVertex3f(5.50f, -0.10f, 1.55f); glVertex3f(0.85f, -0.10f, 0.95f);
+    glVertex3f(0.85f, 0.0f, 0.0f); glVertex3f(4.35f, 0.10f, 0.65f);
+    glVertex3f(4.35f, -0.08f, 1.35f); glVertex3f(0.85f, -0.10f, 0.95f);
 
     glVertex3f(-0.85f, 0.0f, 0.0f); glVertex3f(-0.85f, -0.10f, 0.95f);
-    glVertex3f(-5.50f, -0.10f, 1.55f); glVertex3f(-5.50f, 0.12f, 0.75f);
+    glVertex3f(-4.35f, -0.08f, 1.35f); glVertex3f(-4.35f, 0.10f, 0.65f);
     glEnd();
     glPopMatrix();
+
+    drawHingedSurface(mat_white, 0.95f, 0.95f, 0.95f,
+                      5.35f, -0.16f, 2.70f,
+                      aileronAngle, 0.0f,
+                      0.0f, 0.0f, 0.55f,
+                      2.20f, 0.08f, 1.10f);
+    drawHingedSurface(mat_white, 0.95f, 0.95f, 0.95f,
+                      -5.35f, -0.16f, 2.70f,
+                      -aileronAngle, 0.0f,
+                      0.0f, 0.0f, 0.55f,
+                      2.20f, 0.08f, 1.10f);
 
     setMaterial(mat_gold);
     glColor3f(0.85f, 0.65f, 0.15f);
@@ -496,6 +606,24 @@ void drawDetailedJet() {
     glVertex3f(-0.02f, 3.5f, 9.8f); glVertex3f(-0.02f, 3.5f, 8.5f);
     glEnd();
 
+    // Enhanced vertical rudder fin - now much larger and more visible
+    drawHingedSurface(mat_red, 1.0f, 0.15f, 0.20f,
+                      0.0f, 2.0f, 7.2f,
+                      0.0f, rudderAngle,
+                      0.0f, 1.10f, 1.45f,
+                      0.16f, 2.20f, 2.80f);
+
+    // Bright accent stripe on rudder
+    setMaterial(mat_gold);
+    glColor3f(1.0f, 0.85f, 0.0f);
+    glPushMatrix();
+    glTranslatef(0.0f, 2.0f, 7.2f);
+    glRotatef(rudderAngle, 0.0f, 1.0f, 0.0f);
+    glTranslatef(0.0f, 1.10f + 0.55f, 1.45f);
+    glScalef(0.05f, 0.35f, 0.90f);
+    glutSolidCube(1.0f);
+    glPopMatrix();
+
     setMaterial(mat_grey);
     glColor3f(0.70f, 0.70f, 0.75f);
     glBegin(GL_TRIANGLES);
@@ -505,7 +633,142 @@ void drawDetailedJet() {
     glVertex3f(-0.3f, 0.3f, 7.5f); glVertex3f(-0.3f, 0.3f, 9.5f); glVertex3f(-3.5f, 0.3f, 9.2f);
     glEnd();
 
+    // Enhanced horizontal stabilizers (elevators) - larger and more prominent
+    drawHingedSurface(mat_grey, 0.80f, 0.80f, 0.85f,
+                      2.15f, -0.15f, 7.75f,
+                      elevatorAngle, 0.0f,
+                      0.0f, 0.0f, 0.85f,
+                      3.20f, 0.12f, 1.70f);
+    drawHingedSurface(mat_grey, 0.80f, 0.80f, 0.85f,
+                      -2.15f, -0.15f, 7.75f,
+                      elevatorAngle, 0.0f,
+                      0.0f, 0.0f, 0.85f,
+                      3.20f, 0.12f, 1.70f);
+
+    // Bright accent stripes on elevators for pitch feedback
+    setMaterial(mat_gold);
+    glColor3f(0.95f, 0.80f, 0.0f);
+    glPushMatrix();
+    glTranslatef(2.15f, -0.15f, 7.75f);
+    glRotatef(elevatorAngle, 1.0f, 0.0f, 0.0f);
+    glTranslatef(0.0f, 0.0f, 0.85f);
+    glScalef(0.15f, 0.06f, 0.60f);
+    glutSolidCube(1.0f);
+    glPopMatrix();
+    
+    glPushMatrix();
+    glTranslatef(-2.15f, -0.15f, 7.75f);
+    glRotatef(elevatorAngle, 1.0f, 0.0f, 0.0f);
+    glTranslatef(0.0f, 0.0f, 0.85f);
+    glScalef(0.15f, 0.06f, 0.60f);
+    glutSolidCube(1.0f);
+    glPopMatrix();
+
+    // Wing-mounted vertical fins (winglets) with aileron response
+    // Left wing aileron fin
+    setMaterial(mat_red);
+    glColor3f(0.90f, 0.15f, 0.20f);
+    glPushMatrix();
+    glTranslatef(-9.2f, 0.5f, 3.5f);
+    if (aileronAngle != 0.0f) {
+        glRotatef(aileronAngle * 0.5f, 0.0f, 0.0f, 1.0f);
+    }
+    glScalef(0.35f, 0.90f, 0.15f);
+    glutSolidCube(1.0f);
+    glPopMatrix();
+
+    // Right wing aileron fin
+    setMaterial(mat_red);
+    glColor3f(0.90f, 0.15f, 0.20f);
+    glPushMatrix();
+    glTranslatef(9.2f, 0.5f, 3.5f);
+    if (aileronAngle != 0.0f) {
+        glRotatef(-aileronAngle * 0.5f, 0.0f, 0.0f, 1.0f);
+    }
+    glScalef(0.35f, 0.90f, 0.15f);
+    glutSolidCube(1.0f);
+    glPopMatrix();
+
+    // Bright accent on winglets for roll feedback
+    setMaterial(mat_gold);
+    glColor3f(1.0f, 0.90f, 0.0f);
+    glPushMatrix();
+    glTranslatef(-9.2f, 0.5f, 3.5f);
+    if (aileronAngle != 0.0f) {
+        glRotatef(aileronAngle * 0.5f, 0.0f, 0.0f, 1.0f);
+    }
+    glTranslatef(0.0f, 0.30f, 0.0f);
+    glScalef(0.06f, 0.30f, 0.12f);
+    glutSolidCube(1.0f);
+    glPopMatrix();
+
+    glPushMatrix();
+    glTranslatef(9.2f, 0.5f, 3.5f);
+    if (aileronAngle != 0.0f) {
+        glRotatef(-aileronAngle * 0.5f, 0.0f, 0.0f, 1.0f);
+    }
+    glTranslatef(0.0f, 0.30f, 0.0f);
+    glScalef(0.06f, 0.30f, 0.12f);
+    glutSolidCube(1.0f);
+    glPopMatrix();
+
     drawLandingGear();
+
+    // Navigation and strobe lights (with nighttime intensity boost)
+    float navBlink = 0.5f + 0.5f * std::sin(lightTimer * 10.0f);
+    float strobe = (std::sin(lightTimer * 16.0f) * 0.5f + 0.5f);
+
+    bool isNight = (gameTime >= 18.0f || gameTime < 6.0f);
+    float navBase = isNight ? 1.0f : 0.6f;
+
+    glPushAttrib(GL_CURRENT_BIT | GL_ENABLE_BIT);
+    glDisable(GL_LIGHTING);
+
+    // Left red navigation light
+    glColor3f(0.8f * navBase, 0.1f * navBase, 0.1f * navBase);
+    glPushMatrix();
+    glTranslatef(-8.5f, 0.2f, 4.9f);
+    glutSolidSphere(0.14f, 10, 10);
+    glPopMatrix();
+
+    // Right green navigation light
+    glColor3f(0.1f * navBase, 0.8f * navBase, 0.1f * navBase);
+    glPushMatrix();
+    glTranslatef(8.5f, 0.2f, 4.9f);
+    glutSolidSphere(0.14f, 10, 10);
+    glPopMatrix();
+
+    // Tail white navigation light
+    glColor3f(1.0f * navBase, 1.0f * navBase, 0.8f * navBase);
+    glPushMatrix();
+    glTranslatef(0.0f, 0.7f, -5.0f);
+    glutSolidSphere(0.12f, 10, 10);
+    glPopMatrix();
+
+    // Wingtip strobe lights (pulsing)
+    float strobeIntensity = isNight ? strobe : (0.5f + 0.5f * strobe);
+    glColor3f(1.0f * strobeIntensity, 1.0f * strobeIntensity, 1.0f * strobeIntensity);
+
+    glPushMatrix();
+    glTranslatef(-8.5f, 0.35f, 4.9f);
+    glutSolidSphere(0.12f, 10, 10);
+    glPopMatrix();
+
+    glPushMatrix();
+    glTranslatef(8.5f, 0.35f, 4.9f);
+    glutSolidSphere(0.12f, 10, 10);
+    glPopMatrix();
+
+    if (isNight && navBlink > 0.85f) {
+        // periodic bright forward landing light at nose
+        glColor3f(0.98f, 0.98f, 1.0f);
+        glPushMatrix();
+        glTranslatef(0.0f, -0.2f, 9.2f);
+        glutSolidSphere(0.18f, 12, 12);
+        glPopMatrix();
+    }
+
+    glPopAttrib();
 
     glPopMatrix();
 }

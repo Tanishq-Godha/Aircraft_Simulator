@@ -4,15 +4,29 @@
 #include <GL/glut.h>
 #include <cmath>
 
-#include "terrain.h"
-#include "globals.h"
-#include "math_utils.h"
-#include <GL/glut.h>
-#include <cmath>
-
 float getVoxelHeight(float x, float z);
+float hash(float x, float y);
 
 namespace {
+
+float getBuildingTopAt(float x, float z) {
+    if (selectedMap != 1) {
+        return 0.0f;
+    }
+
+    float buildingStep = BLOCK_SIZE * 4.0f;
+    float centerX = std::round(x / buildingStep) * buildingStep;
+    float centerZ = std::round(z / buildingStep) * buildingStep;
+
+    if (std::fabs(x - centerX) > BLOCK_SIZE ||
+        std::fabs(z - centerZ) > BLOCK_SIZE) {
+        return 0.0f;
+    }
+
+    float groundHeight = getVoxelHeight(centerX, centerZ);
+    float buildingHeight = 500.0f + hash(centerX * 0.001f, centerZ * 0.001f) * 1000.0f;
+    return groundHeight + buildingHeight;
+}
 
 void drawTexturedCube(float x, float y, float z, float width, float height, float depth, float r, float g, float b) {
     glPushMatrix();
@@ -139,6 +153,12 @@ float getVoxelHeight(float x, float z) {
     return snapped < BLOCK_SIZE ? BLOCK_SIZE : snapped;
 }
 
+float getSceneHeight(float x, float z) {
+    float terrainHeight = getVoxelHeight(x, z);
+    float buildingTop = getBuildingTopAt(x, z);
+    return buildingTop > terrainHeight ? buildingTop : terrainHeight;
+}
+
 void drawVoxelTerrain() {
     float nearRadius = 3000.0f;
     float farRadius = 7800.0f;
@@ -179,7 +199,7 @@ void drawVoxelTerrain() {
                 if (std::fabs(x - planeX) > nearRadius * 0.8f || std::fabs(z - planeZ) > nearRadius * 0.8f) continue;
                 
                 float groundHeight = getVoxelHeight(x, z);
-                float buildingHeight = 500.0f + hash(x * 0.001f, z * 0.001f) * 1000.0f;
+                float buildingHeight = getBuildingTopAt(x, z) - groundHeight;
                 
                 // Draw building as a tall cube
                 drawTexturedCube(x, groundHeight + buildingHeight * 0.5f, z, 

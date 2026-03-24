@@ -47,5 +47,8 @@ extern const float BLOCK_SIZE;
 // Game time
 extern float gameTime; // in hours, 0-24, cycles every 24
 
+// Lighting
+extern float lightTimer;
+
 #endif
 

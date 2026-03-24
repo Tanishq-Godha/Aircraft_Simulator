@@ -38,4 +38,5 @@ int selectedMap = 0;
 const float BLOCK_SIZE = 150.0f;
 
 float gameTime = 6.0f; // Start at 6 AM
+float lightTimer = 0.0f; // for blinking aircraft lights
 

@@ -269,6 +269,11 @@ void simulatePhysics(float dt) {
     suspension = approach(suspension, 0.0f, isGrounded ? 2.5f : 6.0f, dt);
 }
 
+void updateLightTimer(float dt) {
+    lightTimer += dt;
+    if (lightTimer > 10000.0f) lightTimer = std::fmod(lightTimer, 10000.0f);
+}
+
 } // namespace
 
 void updatePhysics() {
@@ -299,6 +304,8 @@ void updatePhysics() {
         simulatePhysics(kSimulationStep);
         accumulator -= kSimulationStep;
     }
+
+    updateLightTimer(frameDt);
 
     glutPostRedisplay();
 }
