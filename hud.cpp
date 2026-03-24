@@ -37,6 +37,12 @@ void drawHUD() {
     renderText(cx - 50, screenH - 30, GLUT_BITMAP_HELVETICA_18, viewText);
     renderText(cx - 55, screenH - 50, GLUT_BITMAP_HELVETICA_12, "STATE: " + flightState);
 
+    // Game time display
+    int hour = (int)gameTime;
+    int min = (int)((gameTime - hour) * 60.0f);
+    std::string timeStr = "TIME: " + std::to_string(hour) + ":" + (min < 10 ? "0" : "") + std::to_string(min);
+    renderText(screenW - 200, screenH - 30, GLUT_BITMAP_HELVETICA_18, timeStr);
+
     renderText(50, cy, GLUT_BITMAP_HELVETICA_18, "SPD: " + std::to_string((int)currentSpeed));
     renderText(screenW - 140, cy, GLUT_BITMAP_HELVETICA_18, "AGL: " + std::to_string((int)agl));
     

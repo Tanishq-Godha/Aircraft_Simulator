@@ -3,8 +3,22 @@
 #include "terrain.h"
 #include <cctype>
 #include <cstdlib>
+#include <GL/glut.h>
 
 void keyDown(unsigned char key, int, int) {
+    lastInputTime = glutGet(GLUT_ELAPSED_TIME);
+
+    if (gameState == 0) { // Menu
+        if (key == '1') gameState = 1; // Start game
+        else if (key == '2') gameState = 2; // Controls
+        else if (key == '3') gameState = 3; // Map select
+        return;
+    } else if (gameState == 2 || gameState == 3) { // Controls or Map select
+        if (key == 'b' || key == 'B') gameState = 0; // Back to menu
+        else if (gameState == 3 && key == '1') { selectedMap = 0; gameState = 0; } // Select default
+        else if (gameState == 3 && key == '2') { selectedMap = 1; gameState = 0; } // Select city
+        return;
+    }
 
     unsigned char lowerKey = static_cast<unsigned char>(std::tolower(key));
     keys[lowerKey] = true;
@@ -52,6 +66,9 @@ void keyDown(unsigned char key, int, int) {
     if (lowerKey == 'v')
         cameraMode = (cameraMode + 1) % 4;
 
+    if (lowerKey == 'm' && gameState == 1)
+        gameState = 0;
+
     if (key == 27) exit(0);
 }
 
@@ -60,6 +77,7 @@ void keyUp(unsigned char key, int, int) {
 }
 
 void specialKeyDown(int key, int, int) {
+    lastInputTime = glutGet(GLUT_ELAPSED_TIME);
     if (key >= 0 && key < 256) {
         specialKeys[key] = true;
     }

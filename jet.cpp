@@ -1,7 +1,10 @@
 #include "jet.h"
 #include "globals.h"
 #include <GL/glut.h>
+#include <GL/glu.h>
 #include <math.h>
+
+extern GLUquadric* quadric;
 
 namespace {
 

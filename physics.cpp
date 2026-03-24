@@ -120,24 +120,32 @@ void updateAirPhysics(float dt, float agl) {
     float targetRoll = 0.0f;
     float pitchInput = 0.0f;
 
-    if (keys['a']) targetRoll = -75.0f;
-    else if (keys['d']) targetRoll = 75.0f;
+    // Roll controls (aileron) for realistic banking
+    if (keys['a']) targetRoll = -45.0f;
+    else if (keys['d']) targetRoll = 45.0f;
 
-    roll = approach(roll, targetRoll, 6.0f, dt);
+    roll = approach(roll, targetRoll, 3.5f, dt);
 
-    if (keys['w']) pitchInput = 85.0f;
-    if (keys['s']) pitchInput = -85.0f;
+    // Pitch controls (elevator)
+    if (keys['w']) pitchInput = 30.0f;
+    if (keys['s']) pitchInput = -30.0f;
+
     pitch += pitchInput * dt;
 
+    // Return toward level pitch gradually when no input
     if (!keys['w'] && !keys['s']) {
-        pitch = approach(pitch, 0.0f, 1.8f, dt);
+        pitch = approach(pitch, 0.0f, 1.5f, dt);
     }
 
-    if (keys['q']) yaw += 20.0f * dt;
-    if (keys['e']) yaw -= 20.0f * dt;
+    // Rudder controls (q/e)
+    if (keys['q']) yaw += 30.0f * dt;
+    if (keys['e']) yaw -= 30.0f * dt;
+
+    // Dynamic yaw from banked turn in aileron mode
+    float bankTurnFactor = 0.8f; // strafing effect from roll
+    yaw += (roll / 45.0f) * bankTurnFactor * 30.0f * dt;
 
     pitch = clampf(pitch, -22.0f, 28.0f);
-    yaw -= roll * 0.85f * dt;
 
     flapLift = flaps * 190.0f;
     flapDrag = flaps * 115.0f;
@@ -275,6 +283,10 @@ void updatePhysics() {
 
     float frameDt = (nowMs - lastTickMs) * 0.001f;
     lastTickMs = nowMs;
+
+    // Update game time: 5 min real = 12 hours game
+    gameTime += frameDt * (12.0f / 300.0f); // 12 hours / 300 seconds
+    if (gameTime >= 24.0f) gameTime -= 24.0f;
 
     if (frameDt < 0.0f) {
         frameDt = 0.0f;

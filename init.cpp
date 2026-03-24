@@ -1,6 +1,9 @@
 #include "init.h"
 #include "globals.h"
 #include <GL/glut.h>
+#include <GL/glu.h>
+
+GLUquadric* quadric;
 
 void init() {
     glClearColor(0.4f, 0.7f, 1.0f, 1.0f); 

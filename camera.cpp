@@ -38,7 +38,7 @@ void setupCamera() {
     float speedRatio = clampf(currentSpeed / 920.0f, 0.0f, 1.15f);
 
     float pRad = degToRad(pitch);
-    float yRad = degToRad(yaw);
+    float yRad = degToRad(yaw * 0.3f); // Reduce camera yaw sensitivity for more stable view
 
     float fX = std::sin(yRad) * std::cos(pRad);
     float fY = std::sin(pRad);
@@ -49,24 +49,29 @@ void setupCamera() {
     float targetFov;
 
     if (cameraMode == 0) {
-        float camDist = 15.0f + speedRatio * 7.0f;
-        float camHeight = 4.0f + speedRatio * 1.8f;
-        float lookAhead = 95.0f + speedRatio * 180.0f;
-        float lookDown = 1.0f + speedRatio * 2.0f;
+        // Chase mode: camera follows plane from behind relative to plane center origin
+        // Use plane position as focal point and maintain a fixed trailing offset.
+        float camDist = 30.0f + speedRatio * 20.0f;   // behind the plane
+        float camHeight = 8.0f + speedRatio * 2.0f;   // elevated above the plane
+        float lookAhead = 70.0f + speedRatio * 150.0f;
+        float lookDown = 5.0f;
 
+        // camera is placed behind the plane in world space, plane is treated as origin reference for this mode
         targetCamX = planeX - fX * camDist;
         targetCamY = planeY + camHeight;
         targetCamZ = planeZ - fZ * camDist;
 
+        // look point is ahead of plane along the motion vector, for trajectory following
         targetLookX = planeX + fX * lookAhead;
         targetLookY = planeY + fY * lookAhead - lookDown;
         targetLookZ = planeZ + fZ * lookAhead;
-        targetFov = 76.0f + speedRatio * 34.0f;
+
+        targetFov = 72.0f + speedRatio * 20.0f;
 
     } else if (cameraMode == 1) {
-        targetCamX = planeX - fX * 1.2f;
-        targetCamY = planeY + 0.8f;
-        targetCamZ = planeZ - fZ * 1.2f;
+        targetCamX = planeX - fX * 500.0f;
+        targetCamY = planeY + 200.0f;
+        targetCamZ = planeZ - fZ * 500.0f;
 
         targetLookX = planeX + fX * 180.0f;
         targetLookY = planeY + fY * 180.0f;
@@ -74,9 +79,9 @@ void setupCamera() {
         targetFov = 86.0f + speedRatio * 8.0f;
 
     } else if (cameraMode == 2) {
-        targetCamX = planeX + std::cos(yRad) * 40.0f;
+        targetCamX = planeX + std::cos(yRad) * 25.0f;
         targetCamY = planeY;
-        targetCamZ = planeZ + std::sin(yRad) * 40.0f;
+        targetCamZ = planeZ + std::sin(yRad) * 25.0f;
 
         targetLookX = planeX;
         targetLookY = planeY;
@@ -84,9 +89,9 @@ void setupCamera() {
         targetFov = 72.0f + speedRatio * 18.0f;
 
     } else {
-        targetCamX = planeX + std::sin(yRad) * 40.0f;
+        targetCamX = planeX + std::sin(yRad) * 25.0f;
         targetCamY = planeY;
-        targetCamZ = planeZ - std::cos(yRad) * 40.0f;
+        targetCamZ = planeZ - std::cos(yRad) * 25.0f;
 
         targetLookX = planeX;
         targetLookY = planeY;

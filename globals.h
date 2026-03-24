@@ -2,6 +2,7 @@
 #define GLOBALS_H
 
 #include <GL/glut.h>
+#include <GL/glu.h>
 
 // Window
 extern int screenW, screenH;
@@ -34,12 +35,17 @@ extern float flapDrag;
 
 // Camera
 extern int cameraMode;
+extern int lastInputTime;
+
+// Game state
+extern int gameState; // 0 = menu, 1 = game, 2 = controls, 3 = map select
+extern int selectedMap; // 0 = default terrain, 1 = city map
 
 // Terrain
 extern const float BLOCK_SIZE;
 
-// GL resources
-extern GLUquadric* quadric;
+// Game time
+extern float gameTime; // in hours, 0-24, cycles every 24
 
 #endif
 

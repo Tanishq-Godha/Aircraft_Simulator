@@ -30,8 +30,12 @@ float flapLift = 0.0f;
 float flapDrag = 0.0f;
 
 int cameraMode = 0;
+int lastInputTime = 0;
+
+int gameState = 0; // Start with menu
+int selectedMap = 0;
 
 const float BLOCK_SIZE = 150.0f;
 
-GLUquadric* quadric = nullptr;
+float gameTime = 6.0f; // Start at 6 AM
 
