@@ -5,6 +5,12 @@
 
 GLUquadric* quadric;
 
+void reshape(int w, int h) {
+    screenW = w;
+    screenH = h;
+    glViewport(0, 0, w, h);
+}
+
 void init() {
     glClearColor(0.4f, 0.7f, 1.0f, 1.0f); 
     glEnable(GL_DEPTH_TEST);              

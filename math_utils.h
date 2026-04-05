@@ -12,4 +12,14 @@ inline float lerp(float a, float b, float t) {
     return a + t * (b - a);
 }
 
+inline float clampf(float value, float minValue, float maxValue) {
+    if (value < minValue) return minValue;
+    if (value > maxValue) return maxValue;
+    return value;
+}
+
+inline float mixf(float a, float b, float t) {
+    return a + (b - a) * t;
+}
+
 #endif

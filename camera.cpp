@@ -71,18 +71,13 @@ Vec3 operator*(const Vec3& v, float scalar) {
     return Vec3(v.x * scalar, v.y * scalar, v.z * scalar);
 }
 
+
 Vec3 operator*(float scalar, const Vec3& v) {
     return v * scalar;
 }
 
 Vec3 operator/(const Vec3& v, float scalar) {
     return Vec3(v.x / scalar, v.y / scalar, v.z / scalar);
-}
-
-float clampf(float value, float minValue, float maxValue) {
-    if (value < minValue) return minValue;
-    if (value > maxValue) return maxValue;
-    return value;
 }
 
 float approach(float current, float target, float rate, float dt) {
