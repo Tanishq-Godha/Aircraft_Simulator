@@ -4,111 +4,9 @@
 #include <GL/glut.h>
 #include <cmath>
 
-float getVoxelHeight(float x, float z);
-float hash(float x, float y);
-
-namespace {
-
-float getBuildingTopAt(float x, float z) {
-    if (selectedMap != 1) {
-        return 0.0f;
-    }
-
-    float buildingStep = BLOCK_SIZE * 4.0f;
-    float centerX = std::round(x / buildingStep) * buildingStep;
-    float centerZ = std::round(z / buildingStep) * buildingStep;
-
-    if (std::fabs(x - centerX) > BLOCK_SIZE ||
-        std::fabs(z - centerZ) > BLOCK_SIZE) {
-        return 0.0f;
-    }
-
-    float groundHeight = getVoxelHeight(centerX, centerZ);
-    float buildingHeight = 500.0f + hash(centerX * 0.001f, centerZ * 0.001f) * 1000.0f;
-    return groundHeight + buildingHeight;
-}
-
-void drawTexturedCube(float x, float y, float z, float width, float height, float depth, float r, float g, float b) {
-    glPushMatrix();
-    glTranslatef(x, y, z);
-    glScalef(width, height, depth);
-    
-    float hs = 0.5f; // half-size for unit cube
-    
-    float variation = 0.2f;
-    float darkR = r * (1.0f - variation);
-    float darkG = g * (1.0f - variation);
-    float darkB = b * (1.0f - variation);
-    
-    float lightR = std::min(1.0f, r * (1.0f + variation));
-    float lightG = std::min(1.0f, g * (1.0f + variation));
-    float lightB = std::min(1.0f, b * (1.0f + variation));
-    
-    glBegin(GL_QUADS);
-    
-    // Top face (lighter with subtle pattern)
-    glColor3f(lightR * 0.9f, lightG * 0.9f, lightB * 0.9f); glVertex3f(-hs, hs, -hs);
-    glColor3f(lightR * 1.1f, lightG * 1.1f, lightB * 1.1f); glVertex3f(hs, hs, -hs);
-    glColor3f(lightR * 1.1f, lightG * 1.1f, lightB * 1.1f); glVertex3f(hs, hs, hs);
-    glColor3f(lightR * 0.9f, lightG * 0.9f, lightB * 0.9f); glVertex3f(-hs, hs, hs);
-    
-    // Bottom face (darker)
-    glColor3f(darkR, darkG, darkB); glVertex3f(-hs, -hs, -hs);
-    glColor3f(darkR, darkG, darkB); glVertex3f(-hs, -hs, hs);
-    glColor3f(darkR, darkG, darkB); glVertex3f(hs, -hs, hs);
-    glColor3f(darkR, darkG, darkB); glVertex3f(hs, -hs, -hs);
-    
-    // Front face (base color with vertical stripes)
-    float stripe1 = std::fabs(std::sin(z * 0.02f)) * 0.3f + 0.7f;
-    float stripe2 = std::fabs(std::sin((z + depth) * 0.02f)) * 0.3f + 0.7f;
-    glColor3f(r * stripe1, g * stripe1, b * stripe1); glVertex3f(-hs, -hs, hs);
-    glColor3f(r * stripe2, g * stripe2, b * stripe2); glVertex3f(hs, -hs, hs);
-    glColor3f(r * stripe2, g * stripe2, b * stripe2); glVertex3f(hs, hs, hs);
-    glColor3f(r * stripe1, g * stripe1, b * stripe1); glVertex3f(-hs, hs, hs);
-    
-    // Back face (base color)
-    glColor3f(r, g, b); glVertex3f(-hs, hs, -hs);
-    glColor3f(r, g, b); glVertex3f(hs, hs, -hs);
-    glColor3f(r, g, b); glVertex3f(hs, -hs, -hs);
-    glColor3f(r, g, b); glVertex3f(-hs, -hs, -hs);
-    
-    // Left face (shadowed)
-    glColor3f(darkR * 0.8f, darkG * 0.8f, darkB * 0.8f); glVertex3f(-hs, -hs, -hs);
-    glColor3f(darkR * 0.8f, darkG * 0.8f, darkB * 0.8f); glVertex3f(-hs, -hs, hs);
-    glColor3f(darkR * 0.8f, darkG * 0.8f, darkB * 0.8f); glVertex3f(-hs, hs, hs);
-    glColor3f(darkR * 0.8f, darkG * 0.8f, darkB * 0.8f); glVertex3f(-hs, hs, -hs);
-    
-    // Right face (highlighted)
-    glColor3f(lightR * 0.9f, lightG * 0.9f, lightB * 0.9f); glVertex3f(hs, -hs, -hs);
-    glColor3f(lightR * 0.9f, lightG * 0.9f, lightB * 0.9f); glVertex3f(hs, hs, -hs);
-    glColor3f(lightR * 0.9f, lightG * 0.9f, lightB * 0.9f); glVertex3f(hs, hs, hs);
-    glColor3f(lightR * 0.9f, lightG * 0.9f, lightB * 0.9f); glVertex3f(hs, -hs, hs);
-    
-    glEnd();
-    
-    glPopMatrix();
-}
-
-void drawVoxelColumn(float x, float z, float cellSize) {
-    float h = getVoxelHeight(x + cellSize * 0.5f, z + cellSize * 0.5f);
-    
-    float r, g, b;
-    if (h <= BLOCK_SIZE * 2) {
-        r = 0.1f; g = 0.35f; b = 0.85f;
-    } else if (h <= BLOCK_SIZE * 3) {
-        r = 0.85f; g = 0.85f; b = 0.6f;
-    } else if (h <= BLOCK_SIZE * 7) {
-        r = 0.3f; g = 0.7f; b = 0.25f;
-    } else if (h <= BLOCK_SIZE * 11) {
-        r = 0.55f; g = 0.55f; b = 0.55f;
-    } else {
-        r = 0.95f; g = 0.95f; b = 0.95f;
-    }
-    
-    drawTexturedCube(x + cellSize * 0.5f, h * 0.5f, z + cellSize * 0.5f, cellSize, h, cellSize, r, g, b);
-}
-
-}
+// --------------------------------------------------
+// NOISE
+// --------------------------------------------------
 
 float hash(float x, float y) {
     float h = sin(x * 12.9898f + y * 78.233f) * 43758.5453123f;
@@ -130,81 +28,266 @@ float noise(float x, float y) {
     return lerp(lerp(a, b, ux), lerp(c, d, ux), uy);
 }
 
-float getRawHeight(float x, float z) {
-    float total = 0, freq = 0.0002f, amp = 1800, pers = 0.45f;
+// --------------------------------------------------
+// CITY STRUCTURE
+// --------------------------------------------------
 
-    if (selectedMap == 1) { // City map - flatter terrain
-        freq = 0.0001f;
-        amp = 800;
-        pers = 0.3f;
-    }
+bool isRoad(float x, float z) {
+    float major = BLOCK_SIZE * 20.0f;
+    float minor = BLOCK_SIZE * 8.0f;
 
-    for (int i = 0; i < 4; i++) {
-        total += noise(x * freq, z * freq) * amp;
-        freq *= 2;
-        amp *= pers;
-    }
-    return total;
+    float dxMajor = fmod(fabs(x), major);
+    float dzMajor = fmod(fabs(z), major);
+
+    float dxMinor = fmod(fabs(x + sin(z * 0.001f) * 200), minor);
+    float dzMinor = fmod(fabs(z + cos(x * 0.001f) * 200), minor);
+
+    return (dxMajor < BLOCK_SIZE * 2 ||
+            dzMajor < BLOCK_SIZE * 2 ||
+            dxMinor < BLOCK_SIZE ||
+            dzMinor < BLOCK_SIZE);
 }
+
+// --------------------------------------------------
+// HEIGHT
+// --------------------------------------------------
 
 float getVoxelHeight(float x, float z) {
-    float raw = getRawHeight(x, z);
-    float snapped = floor(raw / BLOCK_SIZE) * BLOCK_SIZE;
-    return snapped < BLOCK_SIZE ? BLOCK_SIZE : snapped;
+    float h = noise(x * 0.0003f, z * 0.0003f) * BLOCK_SIZE * 3;
+    return BLOCK_SIZE + h;
 }
 
-float getSceneHeight(float x, float z) {
-    float terrainHeight = getVoxelHeight(x, z);
-    float buildingTop = getBuildingTopAt(x, z);
-    return buildingTop > terrainHeight ? buildingTop : terrainHeight;
+// --------------------------------------------------
+// DRAWING BASE
+// --------------------------------------------------
+
+void drawCube(float x, float y, float z,
+              float w, float h, float d,
+              float r, float g, float b)
+{
+    glPushMatrix();
+    glTranslatef(x, y, z);
+    glScalef(w, h, d);
+
+    float hs = 0.5f;
+
+    glBegin(GL_QUADS);
+    glColor3f(r, g, b);
+
+    // top
+    glVertex3f(-hs, hs, -hs); glVertex3f(hs, hs, -hs);
+    glVertex3f(hs, hs, hs);   glVertex3f(-hs, hs, hs);
+
+    // bottom
+    glVertex3f(-hs, -hs, -hs); glVertex3f(-hs, -hs, hs);
+    glVertex3f(hs, -hs, hs);   glVertex3f(hs, -hs, -hs);
+
+    // sides
+    glVertex3f(-hs, -hs, hs); glVertex3f(hs, -hs, hs);
+    glVertex3f(hs, hs, hs);   glVertex3f(-hs, hs, hs);
+
+    glVertex3f(-hs, hs, -hs); glVertex3f(hs, hs, -hs);
+    glVertex3f(hs, -hs, -hs); glVertex3f(-hs, -hs, -hs);
+
+    glVertex3f(-hs, -hs, -hs); glVertex3f(-hs, -hs, hs);
+    glVertex3f(-hs, hs, hs);   glVertex3f(-hs, hs, -hs);
+
+    glVertex3f(hs, -hs, -hs); glVertex3f(hs, hs, -hs);
+    glVertex3f(hs, hs, hs);   glVertex3f(hs, -hs, hs);
+
+    glEnd();
+    glPopMatrix();
 }
 
-void drawVoxelTerrain() {
-    float nearRadius = 3000.0f;
-    float farRadius = 7800.0f;
-    float nearStep = BLOCK_SIZE;
-    float farStep = BLOCK_SIZE * 3.0f;
+// --------------------------------------------------
+// TREES
+// --------------------------------------------------
 
-    float nearStartX = floor((planeX - nearRadius) / nearStep) * nearStep;
-    float nearStartZ = floor((planeZ - nearRadius) / nearStep) * nearStep;
+void drawTree(float x, float z, float ground) {
 
-    for (float x = nearStartX; x <= planeX + nearRadius; x += nearStep) {
-        for (float z = nearStartZ; z <= planeZ + nearRadius; z += nearStep) {
-            drawVoxelColumn(x, z, nearStep);
+    float trunkH = 80 + hash(x, z) * 40;
+
+    drawCube(x, ground + trunkH/2, z,
+             20, trunkH, 20,
+             0.4f, 0.25f, 0.1f);
+
+    drawCube(x, ground + trunkH + 40, z,
+             80, 60, 80,
+             0.1f, 0.6f, 0.1f);
+
+    drawCube(x, ground + trunkH + 80, z,
+             60, 50, 60,
+             0.1f, 0.7f, 0.1f);
+
+    drawCube(x, ground + trunkH + 110, z,
+             40, 40, 40,
+             0.2f, 0.8f, 0.2f);
+}
+
+// --------------------------------------------------
+// HOUSES
+// --------------------------------------------------
+
+void drawHouse(float x, float z, float ground) {
+
+    float w = BLOCK_SIZE * (0.6f + hash(x, z) * 0.5f);
+    float h = BLOCK_SIZE * (1.5f + hash(z, x) * 2.0f);
+
+    drawCube(x, ground + h/2, z,
+             w, h, w,
+             0.7f, 0.5f, 0.3f);
+
+    drawCube(x, ground + h + 20, z,
+             w * 1.2f, 40, w * 1.2f,
+             0.5f, 0.1f, 0.1f);
+}
+
+// --------------------------------------------------
+// BUILDINGS
+// --------------------------------------------------
+
+float getBuildingHeight(float x, float z) {
+    float dist = sqrt(x*x + z*z);
+
+    float base = BLOCK_SIZE * (2 + hash(x, z) * 6);
+    float centerBoost = exp(-dist * 0.0002f);
+
+    return base + centerBoost * BLOCK_SIZE * 12 * hash(z, x);
+}
+
+void drawBuilding(float x, float z, float ground) {
+
+    // LOWER DENSITY (only few cells spawn buildings)
+    float bHash = hash(floor(x / (BLOCK_SIZE*4)), floor(z / (BLOCK_SIZE*4)));
+    if (bHash < 0.8f) return;   // only ~20% spawn
+
+    float h = getBuildingHeight(x, z);
+
+    // BIGGER + VARIABLE BASE AREA
+    float baseScale = 2.0f + hash(x, z) * 3.5f;   // large variation
+    float w = BLOCK_SIZE * baseScale;
+    float d = BLOCK_SIZE * (1.5f + hash(z, x) * 3.0f);
+
+    // realistic colors
+    float r = 0.3f + hash(x, z) * 0.15f;
+    float g = 0.32f + hash(z, x) * 0.15f;
+    float b = 0.34f + hash(x + z, z) * 0.15f;
+
+    // MAIN BUILDING
+    drawCube(x, ground + h/2, z, w, h, d, r, g, b);
+
+    // WINDOWS (scaled with building size)
+    float windowH = 25.0f;
+    float spacing = 50.0f;
+
+    for (float currH = 50.0f; currH < h - 30.0f; currH += spacing) {
+
+        float winR = 0.1f, winG = 0.2f, winB = 0.3f;
+        if (hash(x + currH, z) > 0.75f) {
+            winR = 0.95f; winG = 0.85f; winB = 0.5f;
         }
+
+        // +Z
+        drawCube(x, ground + currH, z + d/2 + 2, w * 0.7f, windowH, 3, winR, winG, winB);
+        // -Z
+        drawCube(x, ground + currH, z - d/2 - 2, w * 0.7f, windowH, 3, winR, winG, winB);
+        // +X
+        drawCube(x + w/2 + 2, ground + currH, z, 3, windowH, d * 0.7f, winR, winG, winB);
+        // -X
+        drawCube(x - w/2 - 2, ground + currH, z, 3, windowH, d * 0.7f, winR, winG, winB);
     }
 
-    float farStartX = floor((planeX - farRadius) / farStep) * farStep;
-    float farStartZ = floor((planeZ - farRadius) / farStep) * farStep;
+    // ROOF DETAILS
+    float roofY = ground + h;
+    float rType = hash(x * 1.3f, z * 1.3f);
 
-    for (float x = farStartX; x <= planeX + farRadius; x += farStep) {
-        for (float z = farStartZ; z <= planeZ + farRadius; z += farStep) {
-            if (std::fabs(x - planeX) <= nearRadius &&
-                std::fabs(z - planeZ) <= nearRadius) {
+    if (rType > 0.85f) {
+        drawCube(x, roofY + 60, z, 6, 120, 6, 0.2f, 0.2f, 0.2f); // antenna
+    } 
+    else if (rType > 0.5f) {
+        drawCube(x + w*0.2f, roofY + 10, z + d*0.2f,
+                 w*0.3f, 25, d*0.3f,
+                 0.5f, 0.5f, 0.5f); // HVAC
+    }
+
+    // TIERED TOP (more realistic skyline)
+    if (h > BLOCK_SIZE * 10) {
+        float tierH = h * 0.65f;
+        float tierW = w * 0.6f;
+        float tierD = d * 0.6f;
+
+        drawCube(x,
+                 ground + tierH + (h - tierH)/2,
+                 z,
+                 tierW, h - tierH, tierD,
+                 r*1.1f, g*1.1f, b*1.1f);
+    }
+}
+// --------------------------------------------------
+// SCENE HEIGHT (FIXES CAMERA)
+// --------------------------------------------------
+
+float getSceneHeight(float x, float z) {
+    float ground = getVoxelHeight(x, z);
+
+    if (isRoad(x, z)) return ground;
+
+    float h = getBuildingHeight(x, z);
+    return ground + h;
+}
+
+// --------------------------------------------------
+// MAIN RENDER
+// --------------------------------------------------
+
+void drawVoxelTerrain() {
+
+    float radius = 6000.0f;
+    float step = BLOCK_SIZE;
+
+    float startX = floor((planeX - radius) / step) * step;
+    float startZ = floor((planeZ - radius) / step) * step;
+
+    for (float x = startX; x <= planeX + radius; x += step) {
+        for (float z = startZ; z <= planeZ + radius; z += step) {
+
+            float ground = getVoxelHeight(x, z);
+
+            // ---------------- ROADS ----------------
+            if (isRoad(x, z)) {
+                drawCube(x, ground/2, z, step, ground, step,
+                         0.1f, 0.1f, 0.1f);
+
+                if (fmod(x, BLOCK_SIZE * 4) < BLOCK_SIZE) {
+                    drawCube(x, ground + 5, z,
+                             step * 0.1f, 5, step * 0.6f,
+                             1.0f, 1.0f, 0.2f);
+                }
                 continue;
             }
 
-            drawVoxelColumn(x, z, farStep);
-        }
-    }
+            // ---------------- EMPTY / TREES ----------------
+            if (hash(x, z) < 0.25f) {
+                drawCube(x, ground/2, z, step, ground, step,
+                         0.2f, 0.6f, 0.2f);
 
-    // Draw buildings for city map
-    if (selectedMap == 1) {
-        float buildingStep = BLOCK_SIZE * 4.0f;
-        float buildingStartX = floor((planeX - nearRadius) / buildingStep) * buildingStep;
-        float buildingStartZ = floor((planeZ - nearRadius) / buildingStep) * buildingStep;
+                if (hash(x*2, z*2) > 0.6f) {
+                    drawTree(x, z, ground);
+                }
+                continue;
+            }
 
-        for (float x = buildingStartX; x <= planeX + nearRadius; x += buildingStep) {
-            for (float z = buildingStartZ; z <= planeZ + nearRadius; z += buildingStep) {
-                if (std::fabs(x - planeX) > nearRadius * 0.8f || std::fabs(z - planeZ) > nearRadius * 0.8f) continue;
-                
-                float groundHeight = getVoxelHeight(x, z);
-                float buildingHeight = getBuildingTopAt(x, z) - groundHeight;
-                
-                // Draw building as a tall cube
-                drawTexturedCube(x, groundHeight + buildingHeight * 0.5f, z, 
-                               BLOCK_SIZE * 2.0f, buildingHeight, BLOCK_SIZE * 2.0f, 
-                               0.7f, 0.7f, 0.8f); // Gray buildings
+            // ---------------- HOUSES ----------------
+            if (hash(x+10, z+10) < 0.4f) {
+                // drawHouse(x, z, ground);
+                continue;
+            }
+
+            // ---------------- BUILDINGS ----------------
+            if (fmod(x, BLOCK_SIZE * 3) < BLOCK_SIZE &&
+                fmod(z, BLOCK_SIZE * 3) < BLOCK_SIZE)
+            {
+                drawBuilding(x, z, ground);
             }
         }
     }
