@@ -408,9 +408,9 @@ void drawDetailedJet() {
 
     glPushMatrix();
     glTranslatef(planeX, planeY, planeZ);
-    glRotatef(yaw, 0.0f, 1.0f, 0.0f);
+    glRotatef(-yaw, 0.0f, 1.0f, 0.0f);
     glRotatef(pitch, 1.0f, 0.0f, 0.0f);
-    glRotatef(roll, 0.0f, 0.0f, 1.0f);
+    glRotatef(-roll, 0.0f, 0.0f, 1.0f);
 
     GLfloat mat_white[] = { 0.95f, 0.95f, 0.95f, 1.0f };
     GLfloat mat_red[] = { 0.85f, 0.10f, 0.15f, 1.0f };

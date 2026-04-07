@@ -155,7 +155,7 @@ AircraftBasis getAircraftBasis() {
     basis.right = normalizeOr(cross(basis.forward, basis.up), Vec3(1.0f, 0.0f, 0.0f));
     basis.up = normalizeOr(cross(basis.right, basis.forward), basis.up);
 
-    basis.bankUp = normalizeOr(rotateLocalVector(Vec3(0.0f, 1.0f, 0.0f), yaw, pitch, roll), basis.up);
+    basis.bankUp = normalizeOr(rotateLocalVector(Vec3(0.0f, 1.0f, 0.0f), yaw, pitch, -roll), basis.up);
     basis.bankRight = normalizeOr(cross(basis.forward, basis.bankUp), basis.right);
     basis.bankUp = normalizeOr(cross(basis.bankRight, basis.forward), basis.bankUp);
 

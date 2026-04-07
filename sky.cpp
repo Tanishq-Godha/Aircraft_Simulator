@@ -44,61 +44,92 @@ void drawCloudCluster(float baseX,
     }
 }
 
-void drawChunkedCloudLayer(const WeatherProfile& weather,
-                           float chunkSize,
-                           int chunkRadius,
-                           float windX,
-                           float windZ,
-                           float minHeight,
-                           float heightRange,
-                           float baseRadius,
-                           float radiusJitter,
-                           float baseShade,
-                           float stormShade,
-                           float alpha,
-                           int minClusters,
-                           int extraClusters,
-                           int minPuffs,
-                           int extraPuffs,
-                           float seedOffset) {
-    float driftX = lightTimer * windX;
-    float driftZ = lightTimer * windZ;
+void drawChunkedCloudLayer(const WeatherProfile& weather, const CloudLayerConfig& config) {
+    float driftX = lightTimer * (config.windXBase + weather.storm * config.windXStorm);
+    float driftZ = lightTimer * (config.windZBase + weather.storm * config.windZStorm);
     float fieldPlaneX = planeX - driftX;
     float fieldPlaneZ = planeZ - driftZ;
 
-    int centerChunkX = floorToInt(fieldPlaneX / chunkSize);
-    int centerChunkZ = floorToInt(fieldPlaneZ / chunkSize);
-    float shade = lerp(baseShade, stormShade, weather.storm);
+    int centerChunkX = floorToInt(fieldPlaneX / config.chunkSize);
+    int centerChunkZ = floorToInt(fieldPlaneZ / config.chunkSize);
+    float shade = lerp(config.baseShade, config.stormShade, weather.storm);
 
-    for (int chunkX = centerChunkX - chunkRadius; chunkX <= centerChunkX + chunkRadius; ++chunkX) {
-        for (int chunkZ = centerChunkZ - chunkRadius; chunkZ <= centerChunkZ + chunkRadius; ++chunkZ) {
+    for (int chunkX = centerChunkX - config.chunkRadius; chunkX <= centerChunkX + config.chunkRadius; ++chunkX) {
+        for (int chunkZ = centerChunkZ - config.chunkRadius; chunkZ <= centerChunkZ + config.chunkRadius; ++chunkZ) {
             float chunkSeedX = static_cast<float>(chunkX);
             float chunkSeedZ = static_cast<float>(chunkZ);
-            int clusterCount = minClusters + static_cast<int>(weather.cloudiness * extraClusters);
-            clusterCount += static_cast<int>(hash01(chunkSeedX, chunkSeedZ, seedOffset) * 2.0f);
+            int clusterCount = config.minClusters + static_cast<int>(weather.cloudiness * config.extraClusters);
+            clusterCount += static_cast<int>(hash01(chunkSeedX, chunkSeedZ, config.seedOffset) * 2.0f);
 
             for (int cluster = 0; cluster < clusterCount; ++cluster) {
-                float clusterSeed = seedOffset + static_cast<float>(cluster) * 9.13f;
-                float localX = hash01(chunkSeedX, chunkSeedZ, clusterSeed + 1.0f) * chunkSize;
-                float localZ = hash01(chunkSeedX, chunkSeedZ, clusterSeed + 2.0f) * chunkSize;
-                float baseX = chunkX * chunkSize + localX + driftX;
-                float baseY = minHeight + hash01(chunkSeedX, chunkSeedZ, clusterSeed + 3.0f) * heightRange;
-                float baseZ = chunkZ * chunkSize + localZ + driftZ;
-                int clusterSize = minPuffs + static_cast<int>(hash01(chunkSeedX, chunkSeedZ, clusterSeed + 4.0f) * extraPuffs);
+                float clusterSeed = config.seedOffset + static_cast<float>(cluster) * 9.13f;
+                float localX = hash01(chunkSeedX, chunkSeedZ, clusterSeed + 1.0f) * config.chunkSize;
+                float localZ = hash01(chunkSeedX, chunkSeedZ, clusterSeed + 2.0f) * config.chunkSize;
+                float baseX = chunkX * config.chunkSize + localX + driftX;
+                
+                float actualMinHeight = config.minHeightBase + weather.haze * config.minHeightHaze;
+                float baseY = actualMinHeight + hash01(chunkSeedX, chunkSeedZ, clusterSeed + 3.0f) * config.heightRange;
+                
+                float baseZ = chunkZ * config.chunkSize + localZ + driftZ;
+                int clusterSize = config.minPuffs + static_cast<int>(hash01(chunkSeedX, chunkSeedZ, clusterSeed + 4.0f) * config.extraPuffs);
 
                 drawCloudCluster(baseX,
                                  baseY,
                                  baseZ,
                                  clusterSize,
-                                 baseRadius,
-                                 radiusJitter,
+                                 config.baseRadius,
+                                 config.radiusJitter,
                                  shade,
-                                 alpha,
+                                 config.alpha,
                                  clusterSeed + chunkSeedX * 3.7f + chunkSeedZ * 5.1f);
             }
         }
     }
 }
+
+const CloudLayerConfig defaultDayClouds = {
+    2600.0f, // chunkSize
+    3,       // chunkRadius
+    16.0f,   // windXBase
+    10.0f,   // windXStorm
+    7.0f,    // windZBase
+    5.0f,    // windZStorm
+    2500.0f, // minHeightBase
+    220.0f,  // minHeightHaze
+    900.0f,  // heightRange
+    280.0f,  // baseRadius
+    85.0f,   // radiusJitter
+    0.98f,   // baseShade
+    0.70f,   // stormShade
+    0.88f,   // alpha
+    0,       // minClusters
+    1,       // extraClusters
+    4,       // minPuffs
+    3,       // extraPuffs
+    11.0f    // seedOffset
+};
+
+const CloudLayerConfig defaultNightClouds = {
+    2800.0f, // chunkSize
+    3,       // chunkRadius
+    10.0f,   // windXBase
+    8.0f,    // windXStorm
+    4.5f,    // windZBase
+    3.5f,    // windZStorm
+    2450.0f, // minHeightBase
+    0.0f,    // minHeightHaze
+    700.0f,  // heightRange
+    220.0f,  // baseRadius
+    60.0f,   // radiusJitter
+    0.76f,   // baseShade
+    0.50f,   // stormShade
+    0.82f,   // alpha
+    0,       // minClusters
+    1,       // extraClusters
+    3,       // minPuffs
+    2,       // extraPuffs
+    29.0f    // seedOffset
+};
 
 } // namespace
 
@@ -108,9 +139,9 @@ WeatherProfile getWeatherProfile() {
     float primaryCycle = 0.5f + 0.5f * std::sin(lightTimer * 0.045f);
     float secondaryCycle = 0.5f + 0.5f * std::sin(lightTimer * 0.019f + 1.7f);
 
-    weather.cloudiness = clampf(0.35f + primaryCycle * 0.38f + secondaryCycle * 0.24f, 0.0f, 1.0f);
-    weather.haze = clampf(0.18f + weather.cloudiness * 0.62f, 0.0f, 1.0f);
-    weather.storm = clampf((weather.cloudiness - 0.58f) / 0.42f, 0.0f, 1.0f);
+    weather.cloudiness = clampf(0.10f + primaryCycle * 0.20f + secondaryCycle * 0.15f, 0.0f, 1.0f);
+    weather.haze = clampf(0.10f + weather.cloudiness * 0.50f, 0.0f, 1.0f);
+    weather.storm = clampf((weather.cloudiness - 0.40f) / 0.45f, 0.0f, 1.0f);
     weather.sunBoost = 1.15f - weather.storm * 0.20f;
     weather.starVisibility = 1.05f - weather.cloudiness * 0.55f;
     weather.fogStart = lerp(6500.0f, 2200.0f, weather.haze);
@@ -142,23 +173,7 @@ void drawSky(const WeatherProfile& weather) {
         glutSolidSphere(320.0f + weather.sunBoost * 45.0f, 24, 24);
         glPopMatrix();
 
-        drawChunkedCloudLayer(weather,
-                              2600.0f,
-                              3,
-                              16.0f + weather.storm * 10.0f,
-                              7.0f + weather.storm * 5.0f,
-                              2500.0f + weather.haze * 220.0f,
-                              900.0f,
-                              280.0f,
-                              85.0f,
-                              0.98f,
-                              0.70f,
-                              0.88f,
-                              1,
-                              2,
-                              6,
-                              5,
-                              11.0f);
+        drawChunkedCloudLayer(weather, defaultDayClouds);
     } else {
         // Nighttime: moon and stars (11 hours night)
         float t = (gameTime < 6.0f ? gameTime + 11.0f : gameTime - 19.0f) / 11.0f;
@@ -189,23 +204,7 @@ void drawSky(const WeatherProfile& weather) {
         }
         glEnd();
 
-        drawChunkedCloudLayer(weather,
-                              2800.0f,
-                              3,
-                              10.0f + weather.storm * 8.0f,
-                              4.5f + weather.storm * 3.5f,
-                              2450.0f,
-                              700.0f,
-                              220.0f,
-                              60.0f,
-                              0.76f,
-                              0.50f,
-                              0.82f,
-                              1,
-                              1,
-                              5,
-                              4,
-                              29.0f);
+        drawChunkedCloudLayer(weather, defaultNightClouds);
     }
 
     glEnable(GL_LIGHTING);

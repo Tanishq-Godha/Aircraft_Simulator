@@ -12,6 +12,28 @@ struct WeatherProfile {
     float skyMute;
 };
 
+struct CloudLayerConfig {
+    float chunkSize;
+    int chunkRadius;
+    float windXBase;
+    float windXStorm;
+    float windZBase;
+    float windZStorm;
+    float minHeightBase;
+    float minHeightHaze;
+    float heightRange;
+    float baseRadius;
+    float radiusJitter;
+    float baseShade;
+    float stormShade;
+    float alpha;
+    int minClusters;
+    int extraClusters;
+    int minPuffs;
+    int extraPuffs;
+    float seedOffset;
+};
+
 WeatherProfile getWeatherProfile();
 void drawSky(const WeatherProfile& weather);
 

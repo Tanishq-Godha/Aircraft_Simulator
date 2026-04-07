@@ -134,23 +134,25 @@ void drawHUD() {
     glBegin(GL_LINE_LOOP); glVertex2f(50, cy - 45); glVertex2f(150, cy - 45); glVertex2f(150, cy - 55); glVertex2f(50, cy - 55); glEnd();
     glBegin(GL_QUADS); glVertex2f(50, cy - 45); glVertex2f(50 + (throttle * 100.0f), cy - 45); glVertex2f(50 + (throttle * 100.0f), cy - 55); glVertex2f(50, cy - 55); glEnd();
 
-    glBegin(GL_LINES);
-    glVertex2f(cx - 15, cy); glVertex2f(cx - 5, cy); glVertex2f(cx + 5, cy);  glVertex2f(cx + 15, cy);
-    glVertex2f(cx, cy - 15); glVertex2f(cx, cy - 5);
-    glEnd();
+    if (cameraMode == 1) {
+        glBegin(GL_LINES);
+        glVertex2f(cx - 15, cy); glVertex2f(cx - 5, cy); glVertex2f(cx + 5, cy);  glVertex2f(cx + 15, cy);
+        glVertex2f(cx, cy - 15); glVertex2f(cx, cy - 5);
+        glEnd();
 
-    glPushMatrix();
-    glTranslatef(cx, cy, 0.0f); glRotatef(roll, 0.0f, 0.0f, 1.0f); glTranslatef(0.0f, -pitch * 5.0f, 0.0f); 
-    glBegin(GL_LINES);
-    glVertex2f(-100, 0); glVertex2f(-30, 0); glVertex2f(30, 0); glVertex2f(100, 0);
-    for(int i = -90; i <= 90; i += 15) {
-        if(i == 0) continue;
-        float yOff = i * 5.0f;
-        glVertex2f(-50, yOff); glVertex2f(-30, yOff); glVertex2f(30, yOff); glVertex2f(50, yOff);  
-        if(i > 0) { glVertex2f(-50, yOff); glVertex2f(-50, yOff - 5); glVertex2f(50, yOff); glVertex2f(50, yOff - 5); } 
-        else { glVertex2f(-50, yOff); glVertex2f(-50, yOff + 5); glVertex2f(50, yOff); glVertex2f(50, yOff + 5); }
+        glPushMatrix();
+        glTranslatef(cx, cy, 0.0f); glRotatef(-roll, 0.0f, 0.0f, 1.0f); glTranslatef(0.0f, -pitch * 5.0f, 0.0f); 
+        glBegin(GL_LINES);
+        glVertex2f(-100, 0); glVertex2f(-30, 0); glVertex2f(30, 0); glVertex2f(100, 0);
+        for(int i = -90; i <= 90; i += 15) {
+            if(i == 0) continue;
+            float yOff = i * 5.0f;
+            glVertex2f(-50, yOff); glVertex2f(-30, yOff); glVertex2f(30, yOff); glVertex2f(50, yOff);  
+            if(i > 0) { glVertex2f(-50, yOff); glVertex2f(-50, yOff - 5); glVertex2f(50, yOff); glVertex2f(50, yOff - 5); } 
+            else { glVertex2f(-50, yOff); glVertex2f(-50, yOff + 5); glVertex2f(50, yOff); glVertex2f(50, yOff + 5); }
+        }
+        glEnd(); glPopMatrix();
     }
-    glEnd(); glPopMatrix();
 
     if (isStalling) {
         glColor3f(1.0f, 0.0f, 0.0f);
