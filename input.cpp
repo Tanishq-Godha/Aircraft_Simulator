@@ -52,14 +52,14 @@ void keyDown(unsigned char key, int, int) {
         flapLift = 0.0f;
         flapDrag = 0.0f;
         planeY = getVoxelHeight(planeX, planeZ) + 2000.0f;
-        currentSpeed = 400.0f;
+        currentSpeed = 450.0f;
         throttle = 0.8f;
         pitch = 0.0f;
         roll = 0.0f;
         yaw = 0.0f;
         vX = 0.0f;
         vY = 0.0f;
-        vZ = 400.0f;
+        vZ = 450.0f;
         isStalling = false;
     }
 

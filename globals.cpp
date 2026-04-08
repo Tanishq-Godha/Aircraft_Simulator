@@ -6,10 +6,10 @@ bool specialKeys[256];
 
 float planeX = 0.0f, planeY = 5000.0f, planeZ = 0.0f;
 float pitch = 0.0f, roll = 0.0f, yaw = 0.0f;
-float vX = 0.0f, vY = 0.0f, vZ = 400.0f;
+float vX = 0.0f, vY = 0.0f, vZ = 450.0f;
 
 float throttle = 0.8f;
-float currentSpeed = 400.0f;
+float currentSpeed = 450.0f;
 bool isStalling = false;
 
 bool gearDeployed = false;

@@ -231,8 +231,8 @@ CameraTarget buildCameraTarget(int cameraMode, int nowMs, float speedRatio) {
 
     if (cameraMode == 0) {
         // Yaw is stored in degrees in this project, so convert before using sin/cos.
-        const float offsetDistance = 12.0f;
-        const float offsetHeight = 4.0f;
+        const float offsetDistance = 15.0f;
+        const float offsetHeight = 5.0f;
         const float pitchHeightResponse = 2.0f;
         const float minGroundClearance = 1.0f;
 
@@ -346,13 +346,18 @@ void setupCamera() {
         state.initialized = true;
     } else {
         if (cameraMode == 0) {
-            const float followAlpha = 0.10f;
+            const float followRate = 12.0f;
+            Vec3 planeVelocity(vX, vY, vZ);
 
+            // Predictively move the camera with the plane to eliminate lag
+            state.position = state.position + planeVelocity * dt;
             state.velocity = Vec3();
-            state.position = mixVec(state.position, target.position, followAlpha);
+
+            // Smoothly approach the target offset
+            state.position = approachVec(state.position, target.position, followRate, dt);
             state.lookAt = target.lookAt;
             state.up = target.up;
-            state.fov += (target.fov - state.fov) * followAlpha;
+            state.fov = approach(state.fov, target.fov, 4.0f, dt);
 
             float groundLimit = getInflatedSceneHeight(state.position.x,
                                                        state.position.z,
