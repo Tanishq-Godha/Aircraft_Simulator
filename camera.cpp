@@ -231,10 +231,14 @@ CameraTarget buildCameraTarget(int cameraMode, int nowMs, float speedRatio) {
 
     if (cameraMode == 0) {
         // Yaw is stored in degrees in this project, so convert before using sin/cos.
-        const float offsetDistance = 15.0f;
-        const float offsetHeight = 5.0f;
-        const float pitchHeightResponse = 2.0f;
+        const float baseDistance = 25.0f;
+        const float baseHeight = 12.0f;
+        const float pitchHeightResponse = 2.5f;
         const float minGroundClearance = 1.0f;
+
+        // Dynamic distance based on speed (pulls back at high speed)
+        float offsetDistance = baseDistance + (speedRatio * 12.0f);
+        float offsetHeight = baseHeight + (speedRatio * 4.0f);
 
         float yawRad = degToRad(yaw);
         float pitchLift = degToRad(pitch) * pitchHeightResponse;
@@ -242,6 +246,15 @@ CameraTarget buildCameraTarget(int cameraMode, int nowMs, float speedRatio) {
         float targetCamX = planeX - offsetDistance * std::sin(yawRad);
         float targetCamZ = planeZ + offsetDistance * std::cos(yawRad);
         float targetCamY = planeY + offsetHeight + pitchLift;
+
+        // Dynamic Shake effect at high speeds (starts above 85% top speed)
+        if (speedRatio > 0.85f) {
+            float shakeTime = nowMs * 0.045f;
+            float shakeMag = (speedRatio - 0.85f) * 0.35f;
+            targetCamX += std::sin(shakeTime) * shakeMag;
+            targetCamY += std::cos(shakeTime * 1.1f) * shakeMag;
+            targetCamZ += std::sin(shakeTime * 0.8f) * shakeMag;
+        }
 
         float groundLimit = getInflatedSceneHeight(targetCamX, targetCamZ, 2.0f) + minGroundClearance;
         if (groundLimit < 1.0f) {
@@ -254,7 +267,7 @@ CameraTarget buildCameraTarget(int cameraMode, int nowMs, float speedRatio) {
         target.position = Vec3(targetCamX, targetCamY, targetCamZ);
         target.lookAt = planePos;
         target.up = Vec3(0.0f, 1.0f, 0.0f);
-        target.fov = 72.0f;
+        target.fov = 72.0f + (speedRatio * 16.0f); // Lens expansion effect
         target.stiffness = 0.0f;
         target.damping = 0.0f;
         target.lookRate = 0.0f;
