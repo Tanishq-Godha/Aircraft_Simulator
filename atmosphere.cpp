@@ -56,41 +56,127 @@ void setupAtmosphericFog(const WeatherProfile& weather)
 }
 
 // ================= SUN DRAW =================
+// ================= SUN DRAW (UPGRADED) =================
+// ================= SUN DRAW (BIGGER & ENHANCED SUNSET) =================
 void drawSun(float sunX, float sunY, float sunZ,
              float elevation, const WeatherProfile& weather)
 {
+    // Hide sun if it's well below the horizon
     if (sunY <= -0.05f) return;
 
     float DIST = 9000.0f;
 
-    // ✅ camera-relative (IMPORTANT)
+    // Camera-relative position
     float cx = planeX + sunX * DIST;
     float cy = planeY + sunY * DIST;
     float cz = planeZ + sunZ * DIST;
 
-    float size = 220.0f; // bigger sun
+    // --- SUNSET EFFECT CALCULATIONS ---
+    // 'warm' goes from 0.0 (high in sky) to 1.0 (at horizon)
+    // Multiplying by 4.0 makes the color shift happen smoothly but lower in the sky
+    float warm = 1.0f - std::min(1.0f, fabsf(sunY) * 4.0f); 
 
-    glPushAttrib(GL_ENABLE_BIT);
+    // Illusion: Sun appears larger at the horizon
+    float baseSize = 450.0f; // Much bigger base size (was 220)
+    float size = baseSize * (1.0f + warm * 0.6f); // Up to 60% bigger at sunset
+
+    // Deepen the colors for sunrise/sunset
+    float r = 1.0f;
+    float g = 0.95f - warm * 0.65f; // Fades from bright yellow to deep orange
+    float b = 0.8f - warm * 0.8f;   // Fades out to leave only red/green channels
+
+    glPushAttrib(GL_ENABLE_BIT | GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glDisable(GL_LIGHTING);
     glDisable(GL_FOG);
     glDisable(GL_DEPTH_TEST);
+    glDepthMask(GL_FALSE); // Prevent sun from writing to depth buffer
 
-    float warm = 1.0f - std::min(1.0f, fabsf(sunY));
-    float r = 1.0f;
-    float g = 0.9f - warm * 0.4f;
-    float b = 0.7f - warm * 0.5f;
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 
-    glColor3f(r, g, b);
+    // --- 1. BILLBOARD VECTORS ---
+    float rightX = sunZ, rightY = 0.0f, rightZ = -sunX; 
+    float rLen = sqrtf(rightX*rightX + rightZ*rightZ);
+    if (rLen > 0.0001f) {
+        rightX /= rLen; rightZ /= rLen;
+    } else {
+        rightX = 1.0f; rightZ = 0.0f; 
+    }
 
+    float tUpX = sunY * rightZ - sunZ * rightY;
+    float tUpY = sunZ * rightX - sunX * rightZ;
+    float tUpZ = sunX * rightY - sunY * rightX;
+
+    // --- 2. DRAW THE GLOWING CORONA (Halo) ---
+    // Corona spreads out more during sunset due to atmospheric haze
+    float coronaRadius = size * (2.5f + warm * 1.5f);
+    int segments = 32;
+
+    glBegin(GL_TRIANGLE_FAN);
+    glColor4f(r, g, b, 0.8f); // Bright center
+    glVertex3f(cx, cy, cz);
+    
+    glColor4f(r, g, b, 0.0f); // Fades to transparent
+    for (int i = 0; i <= segments; ++i) {
+        float angle = (float)i * (2.0f * M_PI / segments);
+        float cosA = cosf(angle);
+        float sinA = sinf(angle);
+        
+        glVertex3f(cx + (rightX * cosA + tUpX * sinA) * coronaRadius,
+                   cy + (rightY * cosA + tUpY * sinA) * coronaRadius,
+                   cz + (rightZ * cosA + tUpZ * sinA) * coronaRadius);
+    }
+    glEnd();
+
+    // --- 3. DRAW THE SUN RAYS ---
+    // Rays get slightly shorter and softer during sunset
+    int numRays = 14;
+    float rayLength = size * (4.0f - warm * 1.0f);
+    float rayWidth = size * 0.15f;
+    float rotationOffset = gameTime * 0.2f; 
+    
+    float rayAlpha = 0.5f - warm * 0.25f; // Less harsh glare at sunset
+
+    glBegin(GL_TRIANGLES);
+    for (int i = 0; i < numRays; ++i) {
+        float angle = (float)i * (2.0f * M_PI / numRays) + rotationOffset;
+
+        float cosA = cosf(angle);
+        float sinA = sinf(angle);
+
+        float dirX = rightX * cosA + tUpX * sinA;
+        float dirY = rightY * cosA + tUpY * sinA;
+        float dirZ = rightZ * cosA + tUpZ * sinA;
+
+        float px = -rightX * sinA + tUpX * cosA;
+        float py = -rightY * sinA + tUpY * cosA;
+        float pz = -rightZ * sinA + tUpZ * cosA;
+
+        glColor4f(r, g, b, rayAlpha);
+        glVertex3f(cx, cy, cz);
+
+        glColor4f(r, g, b, 0.0f);
+        glVertex3f(cx + dirX * rayLength + px * rayWidth,
+                   cy + dirY * rayLength + py * rayWidth,
+                   cz + dirZ * rayLength + pz * rayWidth);
+
+        glVertex3f(cx + dirX * rayLength - px * rayWidth,
+                   cy + dirY * rayLength - py * rayWidth,
+                   cz + dirZ * rayLength - pz * rayWidth);
+    }
+    glEnd();
+
+    // --- 4. DRAW THE SOLID CORE ---
+    glDisable(GL_BLEND);
+    // Core turns slightly golden/orange at sunset instead of pure white
+    glColor3f(1.0f, 1.0f - warm * 0.2f, 0.9f - warm * 0.5f); 
     glPushMatrix();
     glTranslatef(cx, cy, cz);
-    glutSolidSphere(size, 40, 40);
+    glutSolidSphere(size * 0.5f, 30, 30);
     glPopMatrix();
 
-    glEnable(GL_DEPTH_TEST);
     glPopAttrib();
 }
-
 // ================= LIGHTING =================
 void setupAtmosphericLighting(const WeatherProfile& weather)
 {

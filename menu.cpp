@@ -85,39 +85,37 @@ void mouseClick(int button, int state, int x, int y) {
         if (gameState == 0) { // Menu
             int buttonWidth = 250;
             int buttonHeight = 50;
+            int centerX = screenW / 2;
             int startY = screenH / 2 + 20;
             
-            if (x >= screenW/2 - buttonWidth/2 && x <= screenW/2 + buttonWidth/2 &&
-                mouseY >= startY && mouseY <= startY + buttonHeight) {
+            if (pointInRect(x, mouseY, centerX - buttonWidth/2, startY, buttonWidth, buttonHeight)) {
                 gameState = 1;
             }
-            else if (x >= screenW/2 - buttonWidth/2 && x <= screenW/2 + buttonWidth/2 &&
-                     mouseY >= startY - 70 && mouseY <= startY - 20) {
+            else if (pointInRect(x, mouseY, centerX - buttonWidth/2, startY - 70, buttonWidth, buttonHeight)) {
                 gameState = 2;
             }
-            else if (x >= screenW/2 - buttonWidth/2 && x <= screenW/2 + buttonWidth/2 &&
-                     mouseY >= startY - 140 && mouseY <= startY - 90) {
+            else if (pointInRect(x, mouseY, centerX - buttonWidth/2, startY - 140, buttonWidth, buttonHeight)) {
                 gameState = 3;
             }
-            else if (x >= screenW - 130 && x <= screenW - 10 && mouseY >= 10 && mouseY <= 50) {
+            else if (pointInRect(x, mouseY, screenW - 130, 10, 120, 40)) {
                 exit(0);
             }
         } else if (gameState == 2) { // Controls
-            if (x >= 50 && x <= 150 && mouseY >= 50 && mouseY <= 80) {
+            if (pointInRect(x, mouseY, 50, 50, 100, 30)) {
                 gameState = 0;
             }
         } else if (gameState == 3) { // Map select
-            if (x >= screenW/2 - 125 && x <= screenW/2 + 125 &&
-                mouseY >= screenH/2 + 20 && mouseY <= screenH/2 + 70) {
+            int centerX = screenW / 2;
+            int centerY = screenH / 2;
+            if (pointInRect(x, mouseY, centerX - 125, centerY + 20, 250, 50)) {
                 selectedMap = 0;
                 gameState = 0;
             }
-            else if (x >= screenW/2 - 125 && x <= screenW/2 + 125 &&
-                     mouseY >= screenH/2 - 40 && mouseY <= screenH/2 + 10) {
+            else if (pointInRect(x, mouseY, centerX - 125, centerY - 40, 250, 50)) {
                 selectedMap = 1;
                 gameState = 0;
             }
-            else if (x >= 50 && x <= 170 && mouseY >= 50 && mouseY <= 90) {
+            else if (pointInRect(x, mouseY, 50, 50, 120, 40)) {
                 gameState = 0;
             }
         }

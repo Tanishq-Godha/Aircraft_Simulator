@@ -67,8 +67,11 @@ void drawHUD() {
 
     glColor4f(1.0f, 1.0f, 1.0f, 1.0f); 
     float cx = screenW / 2.0f; float cy = screenH / 2.0f;
-    float agl = planeY - getVoxelHeight(planeX, planeZ);
+    
+    // FIXED: Use Scene Height for the Radar Altimeter so buildings count!
+    float agl = planeY - getSceneHeight(planeX, planeZ);
     if (agl < 0.0f) agl = 0.0f;
+    
     float speedGaugeX = 18.0f;
     float altitudeGaugeX = screenW - 44.0f;
     float gaugeY = cy - 150.0f;
@@ -105,7 +108,6 @@ void drawHUD() {
     renderText(altitudeGaugeX - 40.0f, gaugeY - 18.0f, GLUT_BITMAP_HELVETICA_18, altBuf);
     renderText(altitudeGaugeX - 48.0f, gaugeY - 34.0f, GLUT_BITMAP_HELVETICA_12, aglBuf);
 
-    // Game time display with AM/PM
     int hour = (int)gameTime;
     int min = (int)((gameTime - hour) * 60.0f);
     int displayHour = hour % 12;
@@ -114,15 +116,14 @@ void drawHUD() {
     char timeBuf[32];
     std::snprintf(timeBuf, sizeof(timeBuf), "TIME: %02d:%02d %s", displayHour, min, ampm.c_str());
     renderText(screenW - 240, screenH - 30, GLUT_BITMAP_HELVETICA_18, timeBuf);
-    renderText(50, cy - 80, GLUT_BITMAP_HELVETICA_12,
-            gearText);
-    renderText(50, cy - 100, GLUT_BITMAP_HELVETICA_12,
-            "SPEED CTRL: R/F OR UP/DOWN");
+    renderText(50, cy - 80, GLUT_BITMAP_HELVETICA_12, gearText);
+    renderText(50, cy - 100, GLUT_BITMAP_HELVETICA_12, "SPEED CTRL: R/F OR UP/DOWN");
 
-    if (gearAnimation < 0.95f && agl < 1200.0f && !isGrounded) {
+    // FIXED: Lowered warning thresholds since city buildings create artificial close calls
+    if (gearAnimation < 0.95f && agl < 500.0f && !isGrounded) {
         glColor3f(1,0,0);
         renderText(cx - 80, cy + 140, GLUT_BITMAP_HELVETICA_18, "CHECK GEAR");
-    } else if (flaps < 0.25f && agl < 1000.0f && currentSpeed < 260.0f && !isGrounded) {
+    } else if (flaps < 0.25f && agl < 700.0f && currentSpeed < 260.0f && !isGrounded) {
         glColor3f(1,0.6f,0);
         renderText(cx - 85, cy + 140, GLUT_BITMAP_HELVETICA_18, "ADD FLAPS");
     }

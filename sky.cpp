@@ -38,7 +38,16 @@ void drawCloudCluster(float baseX, float baseY, float baseZ,
 
         glPushMatrix();
         glTranslatef(baseX + offsetX, baseY + offsetY, baseZ + offsetZ);
-        glColor4f(shade, shade, shade + 0.04f, alpha);
+        float sx, sy, sz;
+getSunDirection(sx, sy, sz);
+
+// simple lighting: brighter if facing sun
+float light = 0.6f + 0.4f * sy;
+
+glColor4f(shade * light,
+          shade * light,
+          (shade + 0.05f) * light,
+          alpha);
         glutSolidSphere(radius, 14, 14);
         glPopMatrix();
     }

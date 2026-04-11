@@ -24,7 +24,7 @@ float approach(float current, float target, float rate, float dt) {
 }
 
 float getGearClearance() {
-    return lerp(2.0f, 6.0f, gearAnimation);
+    return lerp(2.0f, 12.0f, gearAnimation);
 }
 
 bool isLandingAligned() {
@@ -53,6 +53,8 @@ void updateThrottle(float dt) {
     if (keys['f'] || specialKeys[GLUT_KEY_DOWN]) throttle -= 0.5f * dt;
     throttle = clampf(throttle, 0.0f, 1.0f);
 }
+
+
 
 void updateLandingGear(float dt) {
     float gearTarget = gearDeployed ? 1.0f : 0.0f;
@@ -195,6 +197,41 @@ void updateAirPhysics(float dt, float agl) {
     }
 }
 
+float getMaxSceneHeightUnderPlane(float px, float pz, float pyaw) {
+    float yRad = degToRad(pyaw);
+    float fX = std::sin(yRad), fZ = -std::cos(yRad);
+    float rX = std::cos(yRad), rZ = std::sin(yRad);
+
+    float length = 10.0f;   // Was 45.0f
+float wingspan = 10.0f; // Was 54.0f
+
+    // Point sampling: Center, Nose, Left/Right Wingtips, and mid-fuselage corners
+    float hC = getSceneHeight(px, pz);
+    float hN = getSceneHeight(px + fX * (length * 0.5f), pz + fZ * (length * 0.5f));
+    float hL = getSceneHeight(px - rX * (wingspan * 0.5f), pz - rZ * (wingspan * 0.5f));
+    float hR = getSceneHeight(px + rX * (wingspan * 0.5f), pz + rZ * (wingspan * 0.5f));
+    
+    // Add fuselage corners for better edge detection
+    float hFL = getSceneHeight(px + fX * 15.0f - rX * 10.0f, pz + fZ * 15.0f - rZ * 10.0f);
+    float hFR = getSceneHeight(px + fX * 15.0f + rX * 10.0f, pz + fZ * 15.0f + rZ * 10.0f);
+    float hBL = getSceneHeight(px - fX * 15.0f - rX * 10.0f, pz - fZ * 15.0f - rZ * 10.0f);
+    float hBR = getSceneHeight(px - fX * 15.0f + rX * 10.0f, pz - fZ * 15.0f + rZ * 10.0f);
+
+    float maxH = hC;
+    if (hN > maxH) maxH = hN;
+    if (hL > maxH) maxH = hL;
+    if (hR > maxH) maxH = hR;
+    if (hFL > maxH) maxH = hFL;
+    if (hFR > maxH) maxH = hFR;
+    if (hBL > maxH) maxH = hBL;
+    if (hBR > maxH) maxH = hBR;
+
+    float tolerance = 12.0f; 
+    float adjustedHeight = maxH - tolerance;
+    float baseGround = getVoxelHeight(px, pz);
+    return (adjustedHeight < baseGround) ? baseGround : adjustedHeight;
+}
+
 void simulatePhysics(float dt) {
     if (crashed) {
         return;
@@ -208,8 +245,9 @@ void simulatePhysics(float dt) {
 
     updateLandingGear(dt);
 
-    float ground = getVoxelHeight(planeX, planeZ);
-    float agl = planeY - ground;
+    // Get the highest point under the plane's wings/nose (with tolerance)
+    float currentGround = getMaxSceneHeightUnderPlane(planeX, planeZ, yaw);
+    float agl = planeY - currentGround;
     if (agl < 0.0f) {
         agl = 0.0f;
     }
@@ -217,25 +255,45 @@ void simulatePhysics(float dt) {
     if (isGrounded) updateTaxiPhysics(dt);
     else updateAirPhysics(dt, agl);
 
+    // Store previous Y altitude to calculate horizontal wall crashes
+    // Store previous Y altitude
+    float prevY = planeY;
+
     planeX += vX * dt;
     planeY += vY * dt;
     planeZ += vZ * dt;
+    
 
-    ground = getVoxelHeight(planeX, planeZ);
+    // Get the new ground/obstacle height after moving
+    float newGround = getMaxSceneHeightUnderPlane(planeX, planeZ, yaw);
     float clearance = getGearClearance();
 
-    if (!isGrounded && planeY <= ground + clearance) {
+    // --- HORIZONTAL WALL COLLISION (FIXED) ---
+    // If the terrain/building height is suddenly taller than our actual flying altitude, we hit a wall!
+    if (!isGrounded && newGround > planeY) {
+        crashed = true;
+        currentSpeed = 0.0f;
+        vX = 0.0f; vY = 0.0f; vZ = 0.0f;
+        return;
+    }
+
+    // --- VERTICAL COLLISION / LANDING ---
+    if (!isGrounded && planeY <= newGround + clearance) {
         float sinkRate = -vY;
         if (sinkRate < 0.0f) {
             sinkRate = 0.0f;
         }
 
-        bool safeTouchdown = isSafeLanding(sinkRate);
-        bool hardTouchdown = isHardLanding(sinkRate);
+        // Must be landing on actual terrain/road, not the roof of a skyscraper
+        float baseGround = getVoxelHeight(planeX, planeZ);
+        bool onValidRunway = (newGround - baseGround < 20.0f); 
+
+        bool safeTouchdown = isSafeLanding(sinkRate) && onValidRunway;
+        bool hardTouchdown = isHardLanding(sinkRate) && onValidRunway;
 
         if (safeTouchdown || hardTouchdown) {
             isGrounded = true;
-            planeY = ground + clearance;
+            planeY = newGround + clearance;
             vY = 0.0f;
             roll = hardTouchdown ? 2.0f : 1.0f;
             suspension = hardTouchdown
@@ -243,18 +301,19 @@ void simulatePhysics(float dt) {
                        : clampf(sinkRate * 0.0045f, 0.08f, 0.35f);
             currentSpeed *= hardTouchdown ? 0.88f : 0.94f;
         } else {
+            // Crash! (Landed too hard or landed on a building roof)
             crashed = true;
+            planeY = newGround + clearance; 
             currentSpeed = 0.0f;
-            vX = 0.0f;
-            vY = 0.0f;
-            vZ = 0.0f;
+            vX = 0.0f; vY = 0.0f; vZ = 0.0f;
         }
     }
 
+    // --- GROUND CLAMPING ---
     if (isGrounded) {
-        float targetPlaneY = ground + clearance;
-        if (planeY > targetPlaneY + 0.5f) {
-            isGrounded = false;
+        float targetPlaneY = newGround + clearance;
+        if (planeY > targetPlaneY + 2.0f) {
+            isGrounded = false; // Drove off a cliff or ledge
         } else {
             planeY = targetPlaneY;
             isStalling = false;
@@ -268,6 +327,7 @@ void simulatePhysics(float dt) {
 
     suspension = approach(suspension, 0.0f, isGrounded ? 2.5f : 6.0f, dt);
 }
+
 
 void updateLightTimer(float dt) {
     lightTimer += dt;

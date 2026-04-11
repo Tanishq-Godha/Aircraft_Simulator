@@ -40,10 +40,10 @@ void keyDown(unsigned char key, int, int) {
 
     if (lowerKey == 'p') {
         crashed = false;
-        isGrounded = false;
-        gearDeployed = false;
+        isGrounded = true;
+        gearDeployed = true;
         gearInTransition = false;
-        gearAnimation = 0.0f;
+        gearAnimation = 1.0f;
         gearDoorAnim = 0.0f;
         suspension = 0.0f;
         wheelRotation = 0.0f;
@@ -51,15 +51,19 @@ void keyDown(unsigned char key, int, int) {
         flaps = 0.0f;
         flapLift = 0.0f;
         flapDrag = 0.0f;
-        planeY = getVoxelHeight(planeX, planeZ) + 2000.0f;
-        currentSpeed = 450.0f;
-        throttle = 0.8f;
+        
+        planeX = 0.0f;
+        planeZ = 6200.0f;
+        planeY = getVoxelHeight(planeX, planeZ) + 12.0f;
+        
+        currentSpeed = 0.0f;
+        throttle = 0.0f;
         pitch = 0.0f;
         roll = 0.0f;
         yaw = 0.0f;
         vX = 0.0f;
         vY = 0.0f;
-        vZ = 450.0f;
+        vZ = 0.0f;
         isStalling = false;
     }
 

@@ -4,21 +4,21 @@ int screenW = 1024, screenH = 768;
 bool keys[256];
 bool specialKeys[256];
 
-float planeX = 0.0f, planeY = 5000.0f, planeZ = 0.0f;
+float planeX = 0.0f, planeY = 412.0f, planeZ = 6200.0f;
 float pitch = 0.0f, roll = 0.0f, yaw = 0.0f;
-float vX = 0.0f, vY = 0.0f, vZ = 450.0f;
+float vX = 0.0f, vY = 0.0f, vZ = 0.0f;
 
-float throttle = 0.8f;
-float currentSpeed = 450.0f;
+float throttle = 0.0f;
+float currentSpeed = 0.0f;
 bool isStalling = false;
 
-bool gearDeployed = false;
+bool gearDeployed = true;
 bool gearInTransition = false;
-bool isGrounded = false;
+bool isGrounded = true;
 bool crashed = false;
 
 // Landing system
-float gearAnimation = 0.0f;
+float gearAnimation = 1.0f;
 float gearDoorAnim = 0.0f;
 float suspension = 0.0f;
 float wheelRotation = 0.0f;
