@@ -19,8 +19,8 @@ void getSunDirection(float& sx, float& sy, float& sz)
     float angle = t * M_PI;
 
     sy = sinf(angle);
-    sx = cosf(angle);
-    sz = 0.15f;
+    sz = -cosf(angle); // Rotate orbit to North-South (Runway axis)
+    sx = -0.15f;      // Slight offset
 
     float len = sqrtf(sx*sx + sy*sy + sz*sz);
     sx /= len; sy /= len; sz /= len;
