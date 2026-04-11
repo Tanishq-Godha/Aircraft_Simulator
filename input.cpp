@@ -69,6 +69,11 @@ void keyDown(unsigned char key, int, int) {
     if (lowerKey == 'm' && gameState == 1)
         gameState = 0;
 
+    if (lowerKey == 't') {
+        if (timeScale < 2.0f) timeScale = 20.0f;
+        else timeScale = 1.0f;
+    }
+
     if (key == 27) exit(0);
 }
 

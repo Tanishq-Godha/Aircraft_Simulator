@@ -1,4 +1,4 @@
-﻿#include "physics.h"
+#include "physics.h"
 #include "globals.h"
 #include "terrain.h"
 #include "math_utils.h"
@@ -289,8 +289,8 @@ void updatePhysics() {
     float frameDt = (nowMs - lastTickMs) * 0.001f;
     lastTickMs = nowMs;
 
-    // Update game time: 5 min real = 12 hours game
-    gameTime += frameDt * (12.0f / 300.0f); // 12 hours / 300 seconds
+    // Update game time: 5 min real = 12 hours game (apply timeScale)
+    gameTime += frameDt * (12.0f / 300.0f) * timeScale;
     if (gameTime >= 24.0f) gameTime -= 24.0f;
 
     if (frameDt < 0.0f) {
