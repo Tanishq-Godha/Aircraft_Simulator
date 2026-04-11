@@ -75,6 +75,8 @@ void keyDown(unsigned char key, int, int) {
 
     if (lowerKey == 't') {
         if (timeScale < 2.0f) timeScale = 20.0f;
+        else if (timeScale < 25.0f) timeScale = 100.0f;
+        else if (timeScale < 150.0f) timeScale = 500.0f;
         else timeScale = 1.0f;
     }
 

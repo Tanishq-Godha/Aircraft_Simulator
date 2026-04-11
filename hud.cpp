@@ -113,9 +113,13 @@ void drawHUD() {
     int displayHour = hour % 12;
     if (displayHour == 0) displayHour = 12;
     std::string ampm = (hour < 12) ? "AM" : "PM";
-    char timeBuf[32];
-    std::snprintf(timeBuf, sizeof(timeBuf), "TIME: %02d:%02d %s", displayHour, min, ampm.c_str());
-    renderText(screenW - 240, screenH - 30, GLUT_BITMAP_HELVETICA_18, timeBuf);
+    char timeBuf[64];
+    if (timeScale > 1.1f) {
+        std::snprintf(timeBuf, sizeof(timeBuf), "TIME: %02d:%02d %s [%dX FAST]", displayHour, min, ampm.c_str(), (int)timeScale);
+    } else {
+        std::snprintf(timeBuf, sizeof(timeBuf), "TIME: %02d:%02d %s", displayHour, min, ampm.c_str());
+    }
+    renderText(screenW - 280, screenH - 35, GLUT_BITMAP_HELVETICA_18, timeBuf);
     renderText(50, cy - 80, GLUT_BITMAP_HELVETICA_12, gearText);
     renderText(50, cy - 100, GLUT_BITMAP_HELVETICA_12, "SPEED CTRL: R/F OR UP/DOWN");
 

@@ -1,6 +1,7 @@
 #include "terrain.h"
 #include "globals.h"
 #include "math_utils.h"
+#include "atmosphere.h"
 #include <GL/glut.h>
 #include <cmath>
 
@@ -126,23 +127,29 @@ void drawCube(float x, float y, float z,
     glColor3f(r, g, b);
 
     // top
+    glNormal3f(0.0f, 1.0f, 0.0f);
     glVertex3f(-hs, hs, -hs); glVertex3f(hs, hs, -hs);
     glVertex3f(hs, hs, hs);   glVertex3f(-hs, hs, hs);
 
     // bottom
+    glNormal3f(0.0f, -1.0f, 0.0f);
     glVertex3f(-hs, -hs, -hs); glVertex3f(-hs, -hs, hs);
     glVertex3f(hs, -hs, hs);   glVertex3f(hs, -hs, -hs);
 
     // sides
+    glNormal3f(0.0f, 0.0f, 1.0f); // front
     glVertex3f(-hs, -hs, hs); glVertex3f(hs, -hs, hs);
     glVertex3f(hs, hs, hs);   glVertex3f(-hs, hs, hs);
 
+    glNormal3f(0.0f, 0.0f, -1.0f); // back
     glVertex3f(-hs, hs, -hs); glVertex3f(hs, hs, -hs);
     glVertex3f(hs, -hs, -hs); glVertex3f(-hs, -hs, -hs);
 
+    glNormal3f(-1.0f, 0.0f, 0.0f); // left
     glVertex3f(-hs, -hs, -hs); glVertex3f(-hs, -hs, hs);
     glVertex3f(-hs, hs, hs);   glVertex3f(-hs, hs, -hs);
 
+    glNormal3f(1.0f, 0.0f, 0.0f); // right
     glVertex3f(hs, -hs, -hs); glVertex3f(hs, hs, -hs);
     glVertex3f(hs, hs, hs);   glVertex3f(hs, -hs, hs);
 
@@ -235,6 +242,18 @@ void drawAirportTower(float x, float z, float ground) {
     drawCube(x, ground + h*0.85f, z, 160, 100, 160, 0.2f, 0.4f, 0.6f); // Glass
     drawCube(x, ground + h + 20, z, 140, 20, 140, 0.6f, 0.6f, 0.6f); // Roof
     drawCube(x + 30, ground + h + 80, z + 30, 4, 120, 4, 0.1f, 0.1f, 0.1f); // Antenna
+
+    // --- Night Obstruction Light ---
+    if (gameTime > 18.2f || gameTime < 5.8f) {
+        glPushAttrib(GL_ENABLE_BIT | GL_CURRENT_BIT);
+        glDisable(GL_LIGHTING);
+        // Bright red glowing glass
+        drawCube(x, ground + h*0.85f, z, 162, 102, 162, 0.1f, 0.3f, 0.6f);
+        // Red beacon at top of antenna
+        glColor3f(1.0f, 0.0f, 0.0f);
+        drawCube(x + 30, ground + h + 140, z + 30, 12, 12, 12, 1.0f, 0.0f, 0.0f);
+        glPopAttrib();
+    }
 }
 
 void drawHangar(float x, float z, float ground) {
@@ -245,20 +264,66 @@ void drawHangar(float x, float z, float ground) {
     drawCube(x, ground + h, z, w * 0.9f, 40, d, 0.75f, 0.75f, 0.82f);
     // Support door (darker)
     drawCube(x - w/2 + 5, ground + h/2 - 20, z, 10, h * 0.7f, d * 0.8f, 0.3f, 0.3f, 0.3f);
+
+    // --- Night Obstruction Lights ---
+    if (gameTime > 18.2f || gameTime < 5.8f) {
+        glPushAttrib(GL_ENABLE_BIT | GL_CURRENT_BIT);
+        glDisable(GL_LIGHTING);
+        glColor3f(0.8f, 0.0f, 0.0f);
+        // Corner lights
+        drawCube(x-w/2, ground+h+10, z-d/2, 10, 10, 10, 0.8f,0,0);
+        drawCube(x+w/2, ground+h+10, z+d/2, 10, 10, 10, 0.8f,0,0);
+        glPopAttrib();
+    }
 }
 
 void drawBuilding(float x, float z, float ground) {
     if (isInAirportArea(x, z)) {
-        if (std::fabs(x - 900.0f) < 50.0f) drawAirportTower(x, z, ground);
-        else drawHangar(x, z, ground);
+        if (std::fabs(x - 900.0f) < 50.0f) {
+            drawAirportTower(x, z, ground);
+        } else {
+            drawHangar(x, z, ground);
+        }
         return;
     }
     float w, d, h;
     getBuildingDimensionsAtRoot(x, z, w, d, h);
+
     float r = 0.3f + hash(x, z) * 0.15f;
     float g = 0.32f + hash(z, x) * 0.15f;
     float b = 0.34f + hash(x + z, z) * 0.15f;
-    drawCube(x, ground + h/2, z, w, h, d, r, g, b);
+    drawCube(x, ground + h/2.0f, z, w, h, d, r, g, b);
+
+    // --- NIGHTTIME WINDOWS ---
+    bool isNight = (gameTime > 18.2f || gameTime < 5.8f);
+    if (isNight) {
+        glPushAttrib(GL_ENABLE_BIT | GL_CURRENT_BIT);
+        glDisable(GL_LIGHTING); // Make windows "glow"
+
+        // Draw rows of windows on each face
+        float winW = w * 0.12f;
+        float winH = 12.0f;
+        float winSpacing = 22.0f;
+        
+        for (float currY = ground + 30.0f; currY < ground + h - 20.0f; currY += winSpacing) {
+            // Only light some windows based on a hash
+            if (hash(x, currY) > 0.45f) {
+                // Front / Back faces
+                float winGlow = 0.7f + hash(currY, z) * 0.3f;
+                glColor3f(winGlow, winGlow * 0.9f, 0.2f);
+                
+                // Front
+                drawCube(x, currY, z + d/2.0f + 1.0f, w * 0.7f, winH, 2, winGlow, winGlow*0.9f, 0.2f);
+                // Back
+                drawCube(x, currY, z - d/2.0f - 1.0f, w * 0.7f, winH, 2, winGlow, winGlow*0.9f, 0.2f);
+                // Left
+                drawCube(x - w/2.0f - 1.0f, currY, z, 2, winH, d * 0.7f, winGlow, winGlow*0.9f, 0.2f);
+                // Right
+                drawCube(x + w/2.0f + 1.0f, currY, z, 2, winH, d * 0.7f, winGlow, winGlow*0.9f, 0.2f);
+            }
+        }
+        glPopAttrib();
+    }
 
     float windowH = 25.0f, spacing = 50.0f;
     for (float currH = 50.0f; currH < h - 30.0f; currH += spacing) {

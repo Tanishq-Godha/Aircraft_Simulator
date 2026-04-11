@@ -20,7 +20,7 @@ void getSunDirection(float& sx, float& sy, float& sz)
 
     sy = sinf(angle);
     sz = -cosf(angle); // Rotate orbit to North-South (Runway axis)
-    sx = -0.15f;      // Slight offset
+    sx = cosf(angle) * 0.3f;      // Slight offset
 
     float len = sqrtf(sx*sx + sy*sy + sz*sz);
     sx /= len; sy /= len; sz /= len;
@@ -183,28 +183,30 @@ void setupAtmosphericLighting(const WeatherProfile& weather)
     float sx, sy, sz;
     getSunDirection(sx, sy, sz);
 
-    float intensity = std::max(0.2f, sy);
+    float intensity = std::max(0.1f, sy);
+    if (sy < 0.1f && sy > -0.2f) intensity = 0.1f + (sy + 0.2f) * 0.25f;
 
+    float warm = 1.0f - std::min(1.0f, std::fabs(sy) * 3.0f);
     GLfloat pos[] = {-sx, -sy, -sz, 0.0f};
 
     GLfloat diffuse[] = {
-        intensity,
-        intensity * 0.95f,
-        intensity * 0.85f,
+        std::min(1.0f, intensity * 1.15f + warm * 0.45f),
+        std::min(1.0f, intensity * 1.15f + warm * 0.10f),
+        std::min(1.0f, intensity * 1.15f),
         1.0f
     };
 
+    float ambLevel = 0.15f + std::max(0.0f, sy) * 0.2f;
     GLfloat ambient[] = {
-        0.2f + intensity * 0.3f,
-        0.2f + intensity * 0.3f,
-        0.25f + intensity * 0.3f,
+        ambLevel,
+        ambLevel,
+        ambLevel,
         1.0f
     };
 
+    glEnable(GL_LIGHTING);
+    glEnable(GL_LIGHT0);
     glLightfv(GL_LIGHT0, GL_POSITION, pos);
     glLightfv(GL_LIGHT0, GL_DIFFUSE, diffuse);
     glLightfv(GL_LIGHT0, GL_AMBIENT, ambient);
-
-    glEnable(GL_LIGHT0);
-    glEnable(GL_LIGHTING);
 }

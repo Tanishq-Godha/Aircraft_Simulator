@@ -1,5 +1,7 @@
 #include "jet.h"
 #include "globals.h"
+#include "atmosphere.h"
+#include "terrain.h"
 #include <GL/glut.h>
 #include <GL/glu.h>
 #include <math.h>
@@ -595,13 +597,16 @@ void drawDetailedJet() {
     glEnd();
 
     setMaterial(mat_red);
+    setMaterial(mat_red);
     glColor3f(0.85f, 0.10f, 0.15f);
     glBegin(GL_POLYGON);
+    glNormal3f(0.0f, 0.01f, 1.0f); // Face North
     glVertex3f(0.02f, 2.2f, 7.5f); glVertex3f(0.02f, 3.5f, 8.5f);
     glVertex3f(0.02f, 3.5f, 9.8f); glVertex3f(0.02f, 2.2f, 9.5f);
     glEnd();
 
     glBegin(GL_POLYGON);
+    glNormal3f(0.0f, 0.01f, -1.0f); // Face South
     glVertex3f(-0.02f, 2.2f, 7.5f); glVertex3f(-0.02f, 2.2f, 9.5f);
     glVertex3f(-0.02f, 3.5f, 9.8f); glVertex3f(-0.02f, 3.5f, 8.5f);
     glEnd();
@@ -673,6 +678,7 @@ void drawDetailedJet() {
     if (aileronAngle != 0.0f) {
         glRotatef(aileronAngle * 0.5f, 0.0f, 0.0f, 1.0f);
     }
+    glNormal3f(1.0f, 0.0f, 0.0f); // Facing inward
     glScalef(0.35f, 0.90f, 0.15f);
     glutSolidCube(1.0f);
     glPopMatrix();
@@ -685,6 +691,7 @@ void drawDetailedJet() {
     if (aileronAngle != 0.0f) {
         glRotatef(-aileronAngle * 0.5f, 0.0f, 0.0f, 1.0f);
     }
+    glNormal3f(-1.0f, 0.0f, 0.0f); // Facing inward
     glScalef(0.35f, 0.90f, 0.15f);
     glutSolidCube(1.0f);
     glPopMatrix();
@@ -771,4 +778,44 @@ void drawDetailedJet() {
     glPopAttrib();
 
     glPopMatrix();
+
+    // --- REAL-TIME PROJECTED SHADOW ---
+    float sx, sy, sz;
+    getSunDirection(sx, sy, sz);
+
+    // Only draw shadow if sun is up
+    if (sy > 0.05f) {
+        float shadowGround = getVoxelHeight(planeX, planeZ);
+        float h = planeY - shadowGround;
+        
+        // Displacement based on height and sun elevation
+        float k = -h / sy;
+        float shX = planeX + sx * k;
+        float shZ = planeZ + sz * k;
+
+        if (h > 0.0f) {
+            glPushAttrib(GL_ENABLE_BIT | GL_CURRENT_BIT | GL_COLOR_BUFFER_BIT);
+            glDisable(GL_LIGHTING);
+            glDisable(GL_FOG);
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+            glPushMatrix();
+            // Move to the ground intersection point
+            glTranslatef(shX, shadowGround + 0.15f, shZ);
+            glRotatef(-yaw, 0.0f, 1.0f, 0.0f);
+            glScalef(1.25f, 0.001f, 1.25f);
+            
+            // Neutral Black Shadow
+            glColor4f(0.0f, 0.0f, 0.0f, 0.75f);
+            
+            // Render simplified collision/footprint cubes as the shadow
+            drawCube(0.0f, 0.0f, 1.5f, 1.8f, 0.5f, 9.5f, 0,0,0); // Fuselage projection
+            drawCube(0.0f, 0.0f, 1.5f, 16.0f, 0.3f, 4.0f, 0,0,0); // Wings projection
+            drawCube(0.0f, 0.0f, 8.5f, 5.0f, 0.3f, 2.5f, 0,0,0); // Tail projection
+            
+            glPopMatrix();
+            glPopAttrib();
+        }
+    }
 }
