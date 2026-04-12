@@ -2,9 +2,16 @@
 varying vec4 vFragPosLightSpace;
 varying vec3 vNormal;
 varying vec3 vFragPos;
+varying float vFogDist;
 
 uniform sampler2D uShadowMap;
 uniform vec3 uLightDir;
+
+// Fog Uniforms
+uniform vec3 uFogColor;
+uniform float uFogStart;
+uniform float uFogEnd;
+uniform bool uFogEnabled;
 
 float ShadowCalculation(vec4 fragPosLightSpace) {
     vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
@@ -36,8 +43,16 @@ void main() {
     float shadow = ShadowCalculation(vFragPosLightSpace);
     
     // Ambient + Diffuse (with shadow)
-    float ambient = 0.4;
+    float ambient = 0.35;
     vec3 lighting = (ambient + (1.0 - shadow) * diff) * gl_Color.rgb;
     
-    gl_FragColor = vec4(lighting, 1.0);
+    // Manual Fog calculation (Linear)
+    if (uFogEnabled) {
+        float fogFactor = (uFogEnd - vFogDist) / (uFogEnd - uFogStart);
+        fogFactor = clamp(fogFactor, 0.0, 1.0);
+        lighting = mix(uFogColor, lighting, fogFactor);
+    }
+    
+    gl_FragColor = vec4(lighting, gl_Color.a);
 }
+

@@ -48,19 +48,40 @@ void getActiveLightDirection(float& dx, float& dy, float& dz, bool& isSun)
 // ================= SKY COLOR =================
 void setupSkyClearColor(const WeatherProfile& weather)
 {
-    float sx, sy, sz;
-    getSunDirection(sx, sy, sz);
+    // Compute TRUE sun elevation directly from gameTime.
+    // getSunDirection() clamps t to [0,1], so at night sy stays at 0
+    // (looks like permanent sunset orange). We bypass that here.
+    float sunElev;
+    if (gameTime >= 6.0f && gameTime <= 18.0f) {
+        float t = (gameTime - 6.0f) / 12.0f;
+        sunElev = std::sin(t * (float)M_PI);   // 0 at dawn/dusk, 1 at noon
+    } else {
+        float nt = (gameTime > 18.0f) ? (gameTime - 18.0f)
+                                      : (gameTime + 6.0f);
+        sunElev = -std::sin((nt / 12.0f) * (float)M_PI); // negative = below horizon
+    }
 
-    float day = std::max(0.0f, sy);
+    float r, g, b;
 
-    float r = mixf(0.02f, 0.45f, day);
-    float g = mixf(0.04f, 0.65f, day);
-    float b = mixf(0.10f, 0.95f, day);
-
-    float sunset = 1.0f - std::min(1.0f, fabsf(sy) / 0.2f);
-    r = mixf(r, 1.0f, sunset * 0.6f);
-    g = mixf(g, 0.4f, sunset * 0.6f);
-    b = mixf(b, 0.2f, sunset * 0.6f);
+    if (sunElev <= -0.10f) {
+        // ── Full night: deep navy fading to near-black ────────────────────
+        float depth = clampf((-sunElev - 0.10f) / 0.40f, 0.0f, 1.0f);
+        r = mixf(0.04f, 0.01f, depth);
+        g = mixf(0.04f, 0.01f, depth);
+        b = mixf(0.13f, 0.03f, depth);
+    } else if (sunElev < 0.12f) {
+        // ── Twilight band (sunrise / sunset) ─────────────────────────────
+        float t = (sunElev + 0.10f) / 0.22f;   // 0 = night edge, 1 = day edge
+        r = mixf(0.75f, 0.50f, t);
+        g = mixf(0.25f, 0.60f, t);
+        b = mixf(0.12f, 0.88f, t);
+    } else {
+        // ── Daytime: light blue sky ───────────────────────────────────────
+        float day = clampf(sunElev, 0.0f, 1.0f);
+        r = mixf(0.38f, 0.46f, day);
+        g = mixf(0.58f, 0.66f, day);
+        b = mixf(0.84f, 0.96f, day);
+    }
 
     glClearColor(r, g, b, 1.0f);
 }
@@ -68,10 +89,26 @@ void setupSkyClearColor(const WeatherProfile& weather)
 // ================= FOG =================
 void setupAtmosphericFog(const WeatherProfile& weather)
 {
-    GLfloat fogColor[] = {0.5f, 0.6f, 0.7f, 1.0f};
+    // Match fog color to sky: dark navy at night, hazy blue by day
+    float sunElev;
+    if (gameTime >= 6.0f && gameTime <= 18.0f) {
+        float t = (gameTime - 6.0f) / 12.0f;
+        sunElev = std::sin(t * (float)M_PI);
+    } else {
+        float nt = (gameTime > 18.0f) ? (gameTime - 18.0f) : (gameTime + 6.0f);
+        sunElev = -std::sin((nt / 12.0f) * (float)M_PI);
+    }
+    float day = clampf(sunElev, 0.0f, 1.0f);
+
+    GLfloat fogColor[] = {
+        mixf(0.03f, 0.52f, day),
+        mixf(0.03f, 0.60f, day),
+        mixf(0.10f, 0.70f, day),
+        1.0f
+    };
     glFogfv(GL_FOG_COLOR, fogColor);
     glFogf(GL_FOG_START, weather.fogStart);
-    glFogf(GL_FOG_END, weather.fogEnd);
+    glFogf(GL_FOG_END,   weather.fogEnd);
 }
 
 // ================= SUN DRAW =================

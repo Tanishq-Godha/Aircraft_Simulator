@@ -41,3 +41,28 @@ float gameTime = 6.2f; // 06:12 AM
 float lightTimer = 0.0f; // for blinking aircraft lights
 float timeScale = 1.0f;
 
+bool isPaused = false;
+
+// Afterburner
+bool  afterburnerOn = false;
+float afterburnerIntensity = 0.0f;
+
+// Fuel
+float fuel = 1.0f; // start full
+bool  engineOut = false;
+
+// Autopilot
+bool  autopilotOn = false;
+float autopilotAlt = 0.0f;
+
+// Auto-Land
+bool autoLandOn    = false;
+int  autoLandPhase = 0;
+float autoLandTimer = 0.0f;
+
+// Screen fade
+float screenFade = 0.0f;
+
+// Weather control (0=Dynamic, 1=Clear, 2=Cloudy, 3=Foggy)
+int weatherMode = 0;
+

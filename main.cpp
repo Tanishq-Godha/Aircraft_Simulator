@@ -71,19 +71,25 @@ void display() {
         setupCamera();
         float camMatrix[16];
         glGetFloatv(GL_MODELVIEW_MATRIX, camMatrix);
+
+        // Get the sky color we just set (for fog sync)
+        float skyColor[4];
+        glGetFloatv(GL_COLOR_CLEAR_VALUE, skyColor);
         
         setupAtmosphericLighting(weather);
 
-        // Draw with shaders
-        gShadows.bindMainPass(lx, ly, lz, camMatrix);
+        // Draw with shaders - passing weather for fog sync
+        gShadows.bindMainPass(lx, ly, lz, camMatrix, weather, skyColor[0], skyColor[1], skyColor[2]);
         drawVoxelTerrain();
         drawDetailedJet();
-        
-        gShadows.unbind(); 
 
-        // HUD and Sky are non-shaded
-        drawHUD();
+        
+        // Draw Sky/Clouds FIRST so world objects don't cover them
+        gShadows.unbind();
         drawSky(weather);
+
+        // Draw HUD LAST so it stays on top of everything (sky, clouds, plane)
+        drawHUD();
 
         glutSwapBuffers();
     } else if (gameState == 2) {

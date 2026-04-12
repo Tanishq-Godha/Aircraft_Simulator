@@ -2,6 +2,7 @@
 #define SHADOW_SYSTEM_H
 
 #include "shader_loader.h"
+#include "sky.h"
 
 struct ShadowSystem {
     GLuint shadowFBO;
@@ -15,9 +16,11 @@ struct ShadowSystem {
     bool init(int size);
     void setupLightSpace(float sunX, float sunY, float sunZ, float px, float py, float pz);
     void bindShadowPass();
-    void bindMainPass(float sunX, float sunY, float sunZ, float* cameraMatrix);
+    void bindMainPass(float sunX, float sunY, float sunZ, float* cameraMatrix,
+                      const WeatherProfile& weather, float r, float g, float b);
     void unbind();
 };
+
 
 extern ShadowSystem gShadows;
 

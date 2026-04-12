@@ -1,6 +1,7 @@
 #include "hud.h"
 #include "globals.h"
 #include "terrain.h"
+#include "math_utils.h"
 #include <GL/glut.h>
 #include <cstdio>
 #include <string>
@@ -13,12 +14,6 @@ void renderText(float x, float y, void* font, const std::string& text) {
 }
 
 namespace {
-
-float clampf(float value, float minValue, float maxValue) {
-    if (value < minValue) return minValue;
-    if (value > maxValue) return maxValue;
-    return value;
-}
 
 void drawVerticalGauge(float x, float y, float width, float height, float normalized) {
     normalized = clampf(normalized, 0.0f, 1.0f);
@@ -58,6 +53,25 @@ void drawVerticalGauge(float x, float y, float width, float height, float normal
     glEnd();
 }
 
+void drawHorizontalBar(float x, float y, float w, float h,
+                       float normalized,
+                       float r, float g, float b) {
+    normalized = clampf(normalized, 0.0f, 1.0f);
+    glColor4f(1.0f, 1.0f, 1.0f, 0.85f);
+    glBegin(GL_LINE_LOOP);
+    glVertex2f(x, y); glVertex2f(x+w, y);
+    glVertex2f(x+w, y+h); glVertex2f(x, y+h);
+    glEnd();
+
+    glColor4f(r, g, b, 0.75f);
+    glBegin(GL_QUADS);
+    glVertex2f(x+1,           y+1);
+    glVertex2f(x + w*normalized - 1, y+1);
+    glVertex2f(x + w*normalized - 1, y+h-1);
+    glVertex2f(x+1,           y+h-1);
+    glEnd();
+}
+
 } // namespace
 
 void drawHUD() {
@@ -65,108 +79,205 @@ void drawHUD() {
     glMatrixMode(GL_PROJECTION); glPushMatrix(); glLoadIdentity();
     gluOrtho2D(0, screenW, 0, screenH); glMatrixMode(GL_MODELVIEW); glPushMatrix(); glLoadIdentity();
 
-    glColor4f(1.0f, 1.0f, 1.0f, 1.0f); 
-    float cx = screenW / 2.0f; float cy = screenH / 2.0f;
+    float cx = screenW / 2.0f; 
+    float cy = screenH / 2.0f;
+
+    // ── 1. Top Header Bar ──────────────────────────────────────────────────
+    glColor4f(0.0f, 0.0f, 0.0f, 0.5f);
+    glBegin(GL_QUADS);
+    glVertex2f(0, screenH); glVertex2f(screenW, screenH);
+    glVertex2f(screenW, screenH - 45); glVertex2f(0, screenH - 45);
+    glEnd();
     
-    // FIXED: Use Scene Height for the Radar Altimeter so buildings count!
-    float agl = planeY - getSceneHeight(planeX, planeZ);
-    if (agl < 0.0f) agl = 0.0f;
+    glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
     
-    float speedGaugeX = 18.0f;
-    float altitudeGaugeX = screenW - 44.0f;
-    float gaugeY = cy - 150.0f;
-    float gaugeW = 26.0f;
-    float gaugeH = 220.0f;
-    float speedNorm = clampf(currentSpeed / 920.0f, 0.0f, 1.0f);
-    float altitudeNorm = clampf(planeY / 12000.0f, 0.0f, 1.0f);
+    // View Select
+    std::string viewText = "VIEW: ";
+    switch(cameraMode) {
+        case 0: viewText += "CHASE"; break;
+        case 1: viewText += "COCKPIT"; break;
+        case 2: viewText += "CINEMATIC"; break;
+        case 3: viewText += "FLY-BY"; break;
+    }
+    renderText(25, screenH - 30, GLUT_BITMAP_HELVETICA_18, viewText);
 
-    char speedBuf[32];
-    char altBuf[32];
-    char aglBuf[32];
-    std::snprintf(speedBuf, sizeof(speedBuf), "%03d", (int)std::round(currentSpeed));
-    std::snprintf(altBuf, sizeof(altBuf), "%05d", (int)std::round(planeY));
-    std::snprintf(aglBuf, sizeof(aglBuf), "AGL %04d", (int)std::round(agl));
+    // State centered
+    std::string flightState = "STATE: ";
+    if (crashed)    flightState += "CRASHED";
+    else if (isGrounded) flightState += "ROLLING";
+    else            flightState += "AIRBORNE";
+    renderText(cx - 70, screenH - 30, GLUT_BITMAP_HELVETICA_18, flightState);
 
-    std::string gearText = "GEAR: ";
-    if (gearInTransition) gearText += (gearDeployed ? "DEPLOYING" : "RETRACTING");
-    else gearText += ((gearAnimation > 0.95f) ? "DOWN" : "UP");
-
-    std::string flightState = "AIRBORNE";
-    if (crashed) flightState = "CRASHED";
-    else if (isGrounded) flightState = "ROLLING";
-
-    std::string viewText = "";
-    if (cameraMode == 0) viewText = "VIEW: CHASE";
-    if (cameraMode == 1) viewText = "VIEW: COCKPIT";
-    if (cameraMode == 2) viewText = "VIEW: CINEMATIC";
-    if (cameraMode == 3) viewText = "VIEW: FLY-BY";
-    renderText(cx - 50, screenH - 30, GLUT_BITMAP_HELVETICA_18, viewText);
-    renderText(cx - 55, screenH - 50, GLUT_BITMAP_HELVETICA_12, "STATE: " + flightState);
-    renderText(speedGaugeX - 2.0f, gaugeY + gaugeH + 14.0f, GLUT_BITMAP_HELVETICA_12, "SPD");
-    renderText(speedGaugeX - 6.0f, gaugeY - 18.0f, GLUT_BITMAP_HELVETICA_18, speedBuf);
-    renderText(altitudeGaugeX - 2.0f, gaugeY + gaugeH + 14.0f, GLUT_BITMAP_HELVETICA_12, "ALT");
-    renderText(altitudeGaugeX - 40.0f, gaugeY - 18.0f, GLUT_BITMAP_HELVETICA_18, altBuf);
-    renderText(altitudeGaugeX - 48.0f, gaugeY - 34.0f, GLUT_BITMAP_HELVETICA_12, aglBuf);
-
+    // Time on right
     int hour = (int)gameTime;
-    int min = (int)((gameTime - hour) * 60.0f);
+    int min  = (int)((gameTime - hour) * 60.0f);
     int displayHour = hour % 12;
     if (displayHour == 0) displayHour = 12;
     std::string ampm = (hour < 12) ? "AM" : "PM";
     char timeBuf[64];
-    if (timeScale > 1.1f) {
-        std::snprintf(timeBuf, sizeof(timeBuf), "TIME: %02d:%02d %s [%dX FAST]", displayHour, min, ampm.c_str(), (int)timeScale);
-    } else {
-        std::snprintf(timeBuf, sizeof(timeBuf), "TIME: %02d:%02d %s", displayHour, min, ampm.c_str());
-    }
-    renderText(screenW - 280, screenH - 35, GLUT_BITMAP_HELVETICA_18, timeBuf);
-    renderText(50, cy - 80, GLUT_BITMAP_HELVETICA_12, gearText);
-    renderText(50, cy - 100, GLUT_BITMAP_HELVETICA_12, "SPEED CTRL: R/F OR UP/DOWN");
+    if (timeScale > 1.1f)
+        std::snprintf(timeBuf, sizeof(timeBuf), "%02d:%02d %s [%dX]", displayHour, min, ampm.c_str(), (int)timeScale);
+    else
+        std::snprintf(timeBuf, sizeof(timeBuf), "%02d:%02d %s", displayHour, min, ampm.c_str());
+    renderText(screenW - 160, screenH - 30, GLUT_BITMAP_HELVETICA_18, timeBuf);
 
-    // FIXED: Lowered warning thresholds since city buildings create artificial close calls
+    // ── 2. Gauges (Sides) ─────────────────────────────────────────────────────
+    float speedGaugeX   = 35.0f;
+    float altitudeGaugeX = screenW - 61.0f;
+    float gaugeY = cy - 110.0f;
+    float gaugeW = 26.0f;
+    float gaugeH = 220.0f;
+
+    drawVerticalGauge(speedGaugeX,    gaugeY, gaugeW, gaugeH, clampf(currentSpeed / 920.0f, 0.0f, 1.0f));
+    drawVerticalGauge(altitudeGaugeX, gaugeY, gaugeW, gaugeH, clampf(planeY / 12000.0f, 0.0f, 1.0f));
+
+    char speedBuf[16], altBuf[16];
+    std::snprintf(speedBuf, sizeof(speedBuf), "%d", (int)std::round(currentSpeed));
+    std::snprintf(altBuf,   sizeof(altBuf),   "%d", (int)std::round(planeY));
+
+    // SPD Label
+    glColor3f(1, 1, 1);
+    renderText(speedGaugeX, gaugeY + gaugeH + 10, GLUT_BITMAP_HELVETICA_12, "SPD");
+    renderText(speedGaugeX - 5, gaugeY - 25, GLUT_BITMAP_HELVETICA_18, speedBuf);
+
+    // ALT Label
+    renderText(altitudeGaugeX, gaugeY + gaugeH + 10, GLUT_BITMAP_HELVETICA_12, "ALT");
+    renderText(altitudeGaugeX - 10, gaugeY - 25, GLUT_BITMAP_HELVETICA_18, altBuf);
+    
+    float agl = planeY - getSceneHeight(planeX, planeZ);
+    char aglBuf[32];
+    std::snprintf(aglBuf, sizeof(aglBuf), "AGL %d", (int)std::max(0.0f, std::round(agl)));
+    renderText(altitudeGaugeX - 25, gaugeY - 45, GLUT_BITMAP_HELVETICA_12, aglBuf);
+
+    // ── 3. System Status (Bottom Left) ─────────────────────────────────────────
+    float sysX = 35.0f;
+    float sysY = 50.0f;
+    
+    // Throttle
+    renderText(sysX, sysY + 65, GLUT_BITMAP_HELVETICA_12, "THR");
+    drawHorizontalBar(sysX + 40, sysY + 65, 120.0f, 12.0f, throttle, 1.0f, 1.0f, 1.0f);
+    if (afterburnerIntensity > 0.05f) {
+        float ab = afterburnerIntensity;
+        glColor4f(1.0f, 0.6f * ab, 0.0f, ab);
+        renderText(sysX + 165, sysY + 65, GLUT_BITMAP_HELVETICA_12, "AB");
+        glColor4f(1,1,1,1);
+    }
+
+    // Gear
+    std::string gearText = "GEAR: ";
+    if (gearInTransition) gearText += (gearDeployed ? "DEPLOYING" : "RETRACTING");
+    else gearText += ((gearAnimation > 0.95f) ? "DOWN" : "UP");
+    renderText(sysX, sysY + 45, GLUT_BITMAP_HELVETICA_12, gearText);
+
+    // Fuel
+    renderText(sysX, sysY + 25, GLUT_BITMAP_HELVETICA_12, "FUEL");
+    float fuelNorm = clampf(fuel, 0.0f, 1.0f);
+    float fr = (fuelNorm < 0.5f) ? 1.0f : (2.0f - 2.0f * fuelNorm);
+    float fg = (fuelNorm >= 0.5f) ? 1.0f : (2.0f * fuelNorm);
+    drawHorizontalBar(sysX + 40, sysY + 25, 120.0f, 10.0f, fuelNorm, fr, fg, 0.1f);
+
+    // Controls tip
+    glColor4f(1, 1, 1, 0.6f);
+    renderText(sysX, sysY, GLUT_BITMAP_HELVETICA_10, "SPEED CTRL: R/F OR UP/DOWN");
+    glColor4f(1, 1, 1, 1);
+
+    // ── 4. Indicators / Warnings (Center) ──────────────────────────────────────
+    if (autopilotOn && !autoLandOn) {
+        char apBuf[48];
+        std::snprintf(apBuf, sizeof(apBuf), "AP ACTIVE: ALT %d", (int)std::round(autopilotAlt));
+        glColor3f(0.2f, 1.0f, 0.4f);
+        renderText(cx - 85, screenH - 75, GLUT_BITMAP_HELVETICA_18, apBuf);
+    }
+
+    if (autoLandOn) {
+        glColor3f(0.3f, 0.85f, 1.0f);
+        if (autoLandPhase == 0) {
+            char alBuf[48];
+            int secsLeft = (int)std::ceil(autoLandTimer);
+            std::snprintf(alBuf, sizeof(alBuf), "AUTO-LAND INITIALIZING: %ds", secsLeft);
+            renderText(cx - 150, screenH - 75, GLUT_BITMAP_HELVETICA_18, alBuf);
+        } else if (autoLandPhase == 1) {
+            renderText(cx - 60, screenH - 75, GLUT_BITMAP_HELVETICA_18, "EXECUTING LANDING...");
+        }
+    }
+
     if (gearAnimation < 0.95f && agl < 500.0f && !isGrounded) {
-        glColor3f(1,0,0);
-        renderText(cx - 80, cy + 140, GLUT_BITMAP_HELVETICA_18, "CHECK GEAR");
+        glColor3f(1, 0, 0);
+        renderText(cx - 65, cy + 140, GLUT_BITMAP_HELVETICA_18, "CHECK GEAR!");
     } else if (flaps < 0.25f && agl < 700.0f && currentSpeed < 260.0f && !isGrounded) {
-        glColor3f(1,0.6f,0);
-        renderText(cx - 85, cy + 140, GLUT_BITMAP_HELVETICA_18, "ADD FLAPS");
+        glColor3f(1, 0.6f, 0);
+        renderText(cx - 65, cy + 140, GLUT_BITMAP_HELVETICA_18, "EXTEND FLAPS");
     }
-    glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
 
-    drawVerticalGauge(speedGaugeX, gaugeY, gaugeW, gaugeH, speedNorm);
-    drawVerticalGauge(altitudeGaugeX, gaugeY, gaugeW, gaugeH, altitudeNorm);
+    if (engineOut) {
+        glColor3f(1.0f, 0.1f, 0.1f);
+        renderText(cx - 70, cy + 170, GLUT_BITMAP_HELVETICA_18, "ENGINE OUT");
+    }
 
-    glBegin(GL_LINE_LOOP); glVertex2f(50, cy - 45); glVertex2f(150, cy - 45); glVertex2f(150, cy - 55); glVertex2f(50, cy - 55); glEnd();
-    glBegin(GL_QUADS); glVertex2f(50, cy - 45); glVertex2f(50 + (throttle * 100.0f), cy - 45); glVertex2f(50 + (throttle * 100.0f), cy - 55); glVertex2f(50, cy - 55); glEnd();
-
+    // Crosshair / Flight Director
     if (cameraMode == 1) {
+        glColor4f(0.2f, 1.0f, 0.2f, 0.8f);
         glBegin(GL_LINES);
-        glVertex2f(cx - 15, cy); glVertex2f(cx - 5, cy); glVertex2f(cx + 5, cy);  glVertex2f(cx + 15, cy);
-        glVertex2f(cx, cy - 15); glVertex2f(cx, cy - 5);
+        glVertex2f(cx - 20, cy); glVertex2f(cx - 7, cy);
+        glVertex2f(cx +  7, cy); glVertex2f(cx + 20, cy);
+        glVertex2f(cx, cy - 20); glVertex2f(cx, cy - 7);
+        glVertex2f(cx, cy +  7); glVertex2f(cx, cy + 20);
         glEnd();
 
         glPushMatrix();
-        glTranslatef(cx, cy, 0.0f); glRotatef(-roll, 0.0f, 0.0f, 1.0f); glTranslatef(0.0f, -pitch * 5.0f, 0.0f); 
+        glTranslatef(cx, cy, 0.0f);
+        glRotatef(-roll, 0.0f, 0.0f, 1.0f);
+        glTranslatef(0.0f, -pitch * 6.0f, 0.0f);
         glBegin(GL_LINES);
-        glVertex2f(-100, 0); glVertex2f(-30, 0); glVertex2f(30, 0); glVertex2f(100, 0);
-        for(int i = -90; i <= 90; i += 15) {
-            if(i == 0) continue;
-            float yOff = i * 5.0f;
-            glVertex2f(-50, yOff); glVertex2f(-30, yOff); glVertex2f(30, yOff); glVertex2f(50, yOff);  
-            if(i > 0) { glVertex2f(-50, yOff); glVertex2f(-50, yOff - 5); glVertex2f(50, yOff); glVertex2f(50, yOff - 5); } 
-            else { glVertex2f(-50, yOff); glVertex2f(-50, yOff + 5); glVertex2f(50, yOff); glVertex2f(50, yOff + 5); }
+        glVertex2f(-120, 0); glVertex2f(-40, 0);
+        glVertex2f(  40, 0); glVertex2f(120, 0);
+        for (int i = -90; i <= 90; i += 15) {
+            if (i == 0) continue;
+            float yOff = i * 6.0f;
+            glVertex2f(-60, yOff); glVertex2f(-40, yOff);
+            glVertex2f( 40, yOff); glVertex2f( 60, yOff);
         }
-        glEnd(); glPopMatrix();
+        glEnd();
+        glPopMatrix();
     }
 
     if (isStalling) {
         glColor3f(1.0f, 0.0f, 0.0f);
-        renderText(cx - 40, cy + 100, GLUT_BITMAP_TIMES_ROMAN_24, "STALL!");
+        renderText(cx - 45, cy + 100, GLUT_BITMAP_TIMES_ROMAN_24, "STALL!");
     }
 
     if (crashed) {
-        glColor3f(1.0f, 0.0f, 0.0f);
-        renderText(cx - 90, cy + 70, GLUT_BITMAP_HELVETICA_18, "CRASHED - PRESS P");
+        glColor4f(0, 0, 0, 0.6f);
+        glBegin(GL_QUADS);
+        glVertex2f(cx-110, cy+60); glVertex2f(cx+110, cy+60);
+        glVertex2f(cx+110, cy+95); glVertex2f(cx-110, cy+95);
+        glEnd();
+        glColor3f(1.0f, 0.2f, 0.2f);
+        renderText(cx - 100, cy + 70, GLUT_BITMAP_HELVETICA_18, "CRASHED - PRESS P");
+    }
+
+    // ── PAUSE overlay ────────────────────────────────────────────────────────────
+    if (isPaused) {
+        glColor4f(0.0f, 0.0f, 0.0f, 0.55f);
+        glBegin(GL_QUADS);
+        glVertex2f(0, 0); glVertex2f(screenW, 0);
+        glVertex2f(screenW, screenH); glVertex2f(0, screenH);
+        glEnd();
+
+        glColor3f(1.0f, 1.0f, 1.0f);
+        renderText(cx - 58, cy + 30, GLUT_BITMAP_TIMES_ROMAN_24, "PAUSED");
+        renderText(cx - 95, cy - 10, GLUT_BITMAP_HELVETICA_18, "Press Y to Resume");
+        renderText(cx - 110, cy - 35, GLUT_BITMAP_HELVETICA_12, "M = Menu   ESC = Menu   P = Reset");
+    }
+
+    // Screen fade (landing cinematic)
+    if (screenFade > 0.01f) {
+        glDisable(GL_TEXTURE_2D);
+        glColor4f(0.0f, 0.0f, 0.0f, clampf(screenFade, 0.0f, 1.0f));
+        glBegin(GL_QUADS);
+        glVertex2f(0, 0); glVertex2f(screenW, 0);
+        glVertex2f(screenW, screenH); glVertex2f(0, screenH);
+        glEnd();
     }
 
     glPopMatrix(); glMatrixMode(GL_PROJECTION); glPopMatrix(); glMatrixMode(GL_MODELVIEW);

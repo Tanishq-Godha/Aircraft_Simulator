@@ -198,7 +198,8 @@ void ShadowSystem::bindShadowPass() {
     glUseProgram(depthShader);
 }
 
-void ShadowSystem::bindMainPass(float sunX, float sunY, float sunZ, float* cameraMatrix) {
+void ShadowSystem::bindMainPass(float sunX, float sunY, float sunZ, float* cameraMatrix,
+                               const WeatherProfile& weather, float r, float g, float b) {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glUseProgram(mainShader);
     
@@ -211,10 +212,17 @@ void ShadowSystem::bindMainPass(float sunX, float sunY, float sunZ, float* camer
     glUniformMatrix4fv(glGetUniformLocation(mainShader, "uLightSpaceMatrix"), 1, GL_FALSE, lightSpaceMatrix);
     glUniform3f(glGetUniformLocation(mainShader, "uLightDir"), sunX, sunY, sunZ);
     
+    // Pass Fog Uniforms
+    glUniform3f(glGetUniformLocation(mainShader, "uFogColor"), r, g, b);
+    glUniform1f(glGetUniformLocation(mainShader, "uFogStart"), weather.fogStart);
+    glUniform1f(glGetUniformLocation(mainShader, "uFogEnd"),   weather.fogEnd);
+    glUniform1i(glGetUniformLocation(mainShader, "uFogEnabled"), 1); // Fog always available in Game State 1
+
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, shadowMap);
     glUniform1i(glGetUniformLocation(mainShader, "uShadowMap"), 0);
 }
+
 
 void ShadowSystem::unbind() {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);

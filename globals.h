@@ -40,6 +40,7 @@ extern int lastInputTime;
 // Game state
 extern int gameState; // 0 = menu, 1 = game, 2 = controls, 3 = map select
 extern int selectedMap; // 0 = default terrain, 1 = city map
+extern bool isPaused;
 
 // Terrain
 extern const float BLOCK_SIZE;
@@ -50,6 +51,29 @@ extern float gameTime; // in hours, 0-24, cycles every 24
 // Lighting
 extern float lightTimer;
 extern float timeScale;
+
+// Afterburner
+extern bool  afterburnerOn;
+extern float afterburnerIntensity; // 0..1 animated
+
+// Fuel
+extern float fuel;       // 1.0 = full, 0.0 = empty
+extern bool  engineOut;
+
+// Autopilot (H key)
+extern bool  autopilotOn;
+extern float autopilotAlt; // target altitude when AP engaged
+
+// Auto-Land (L key)
+extern bool autoLandOn;
+extern int  autoLandPhase; // 0=autopilot countdown, 1=fade-to-black, 2=reset+fade-in
+extern float autoLandTimer; // seconds remaining in current phase
+
+// Screen fade (0=normal, 1=full black) — used for landing cinematic
+extern float screenFade;
+
+// Weather control (0=Dynamic, 1=Clear, 2=Cloudy, 3=Foggy)
+extern int weatherMode;
 
 #endif
 

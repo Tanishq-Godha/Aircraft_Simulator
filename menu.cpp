@@ -156,33 +156,39 @@ void drawMenu() {
 void drawControls() {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glLoadIdentity();
-    
+
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
     gluOrtho2D(0, screenW, 0, screenH);
     glMatrixMode(GL_MODELVIEW);
-    
+
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_LIGHTING);
-    
+
     drawBackgroundGradient();
 
     glColor3f(1.0f, 1.0f, 1.0f);
     drawStrokeText(60, screenH - 60, "Game Controls", 0.25f, true);
 
     int rowStart = screenH - 110;
-    int step = 30;
-    drawText(60, rowStart, "WASD - Turn");
-    drawText(60, rowStart - step, "+/- - Throttle");
-    drawText(60, rowStart - 2*step, "G - Landing Gear");
-    drawText(60, rowStart - 3*step, "[/] - Flaps");
-    drawText(60, rowStart - 4*step, "V - Camera Mode");
-    drawText(60, rowStart - 5*step, "P - Reset");
-    drawText(60, rowStart - 6*step, "M - Return to Menu");
-    drawText(60, rowStart - 7*step, "ESC - Exit");
+    int step = 26;
+    // Column 1
+    drawText(60,  rowStart,          "WASD     - Pitch / Roll");
+    drawText(60,  rowStart - step,   "R / F    - Throttle Up/Down");
+    drawText(60,  rowStart - 2*step, "+/-      - Throttle nudge");
+    drawText(60,  rowStart - 3*step, "G        - Landing Gear");
+    drawText(60,  rowStart - 4*step, "[/]      - Flaps");
+    drawText(60,  rowStart - 5*step, "V        - Camera Mode");
+    drawText(60,  rowStart - 6*step, "T        - Time Speed");
+    drawText(60,  rowStart - 7*step, "P        - Full Reset");
+    drawText(60,  rowStart - 8*step, "M        - Return to Menu");
+    drawText(60,  rowStart - 9*step, "Y        - Pause / Resume");
+    drawText(60,  rowStart - 10*step,"H        - Autopilot (Alt Hold)");
+    drawText(60,  rowStart - 11*step,"L        - Auto-Land");
+    drawText(60,  rowStart - 12*step,"ESC      - Main Menu");
 
     drawButton(50, 50, 100, 30, "Back");
-    
+
     glutSwapBuffers();
 }
 

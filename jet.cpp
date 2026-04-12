@@ -5,6 +5,11 @@
 #include <GL/glut.h>
 #include <GL/glu.h>
 #include <math.h>
+#include <cmath>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 extern GLUquadric* quadric;
 
@@ -434,14 +439,19 @@ void drawDetailedJet() {
     gluCylinder(quadric, 0.8f, 0.8f, 9.0f, 48, 1);
     glPopMatrix();
 
+    // Nose cone — cone geometry (avoids GL_CLIP_PLANE0 eye-space issues)
+    // Rotates 180° around X so gluCylinder extends in the -Z (forward) direction.
+    // Base radius 0.8 matches fuselage; tip radius ~0 for smooth point.
     glPushMatrix();
     glTranslatef(0.0f, 0.0f, -3.0f);
-    glScalef(1.0f, 1.0f, 2.5f);
-    double eqn[4] = { 0.0, 0.0, -1.0, 0.0 };
-    glClipPlane(GL_CLIP_PLANE0, eqn);
-    glEnable(GL_CLIP_PLANE0);
-    gluSphere(quadric, 0.8f, 48, 48);
-    glDisable(GL_CLIP_PLANE0);
+    glRotatef(180.0f, 1.0f, 0.0f, 0.0f);   // flip: local +Z → world -Z (nose forward)
+    gluCylinder(quadric, 0.8f, 0.025f, 2.2f, 36, 12); // nose cone body
+    glPopMatrix();
+
+    // Rounded nose tip (small sphere at the very front)
+    glPushMatrix();
+    glTranslatef(0.0f, 0.0f, -5.2f);
+    glutSolidSphere(0.08f, 14, 14);
     glPopMatrix();
 
     glPushMatrix();
@@ -573,6 +583,68 @@ void drawDetailedJet() {
         glTranslatef(0.0f, 0.0f, 2.55f);
         gluCylinder(quadric, 0.45f, 0.38f, 0.28f, 28, 1);
         glPopMatrix();
+
+        // ── Afterburner cone ─────────────────────────────────────────────────
+        if (afterburnerIntensity > 0.01f) {
+            float t       = afterburnerIntensity;
+            float flicker = 0.82f + 0.18f * std::sin(lightTimer * 42.0f + (float)i * 1.3f);
+            float coneLen = (2.8f + 0.6f * std::sin(lightTimer * 28.0f)) * t;
+            float baseR   = 0.36f * t;
+
+            glPushAttrib(GL_ENABLE_BIT | GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            glDisable(GL_LIGHTING);
+            glDepthMask(GL_FALSE);
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE); // additive blend
+
+            // Nozzle exit is at local z = 2.83 (2.55 + 0.28)
+            float nozzleZ = 2.83f;
+            int   segs    = 24;
+
+            // --- Outer halo cone (orange/yellow) ---
+            glBegin(GL_TRIANGLE_FAN);
+            glColor4f(1.0f, 0.55f, 0.05f, 0.0f);           // tip: transparent
+            glVertex3f(0.0f, 0.0f, nozzleZ + coneLen);
+            glColor4f(1.0f, 0.45f, 0.0f, 0.45f * t * flicker);
+            for (int s = 0; s <= segs; ++s) {
+                float ang = s * 2.0f * (float)M_PI / segs;
+                glVertex3f(std::cos(ang) * baseR * 1.35f,
+                           std::sin(ang) * baseR * 1.35f,
+                           nozzleZ);
+            }
+            glEnd();
+
+            // --- Inner core cone (blue-white) ---
+            glBegin(GL_TRIANGLE_FAN);
+            glColor4f(0.85f, 0.95f, 1.0f, 0.0f);           // tip: transparent
+            glVertex3f(0.0f, 0.0f, nozzleZ + coneLen * 0.72f);
+            glColor4f(0.7f, 0.85f, 1.0f, 0.75f * t * flicker);
+            for (int s = 0; s <= segs; ++s) {
+                float ang = s * 2.0f * (float)M_PI / segs;
+                glVertex3f(std::cos(ang) * baseR * 0.65f,
+                           std::sin(ang) * baseR * 0.65f,
+                           nozzleZ);
+            }
+            glEnd();
+
+            // --- Bright nozzle glow disk ---
+            glBegin(GL_TRIANGLE_FAN);
+            glColor4f(1.0f, 0.80f, 0.30f, 0.90f * t * flicker);
+            glVertex3f(0.0f, 0.0f, nozzleZ + 0.02f);
+            glColor4f(1.0f, 0.50f, 0.05f, 0.0f);
+            for (int s = 0; s <= segs; ++s) {
+                float ang = s * 2.0f * (float)M_PI / segs;
+                glVertex3f(std::cos(ang) * baseR,
+                           std::sin(ang) * baseR,
+                           nozzleZ + 0.02f);
+            }
+            glEnd();
+
+            glDepthMask(GL_TRUE);
+            glPopAttrib();
+        }
+        // ── End afterburner ──────────────────────────────────────────────────
+
         glPopMatrix();
     }
 
@@ -721,61 +793,110 @@ void drawDetailedJet() {
 
     drawLandingGear();
 
-    // Navigation and strobe lights (with nighttime intensity boost)
-    float navBlink = 0.5f + 0.5f * std::sin(lightTimer * 10.0f);
-    float strobe = (std::sin(lightTimer * 16.0f) * 0.5f + 0.5f);
+    // ── Navigation and strobe lights ────────────────────────────────────────
+    // Faster, sharper blink for "blinking" effect
+    float navBlink = (std::sin(lightTimer * 12.0f) > 0.0f) ? 1.0f : 0.05f; 
+    float strobe   = (std::sin(lightTimer * 20.0f) > 0.8f) ? 1.0f : 0.0f;
 
-    bool isNight = (gameTime >= 18.0f || gameTime < 6.0f);
-    float navBase = isNight ? 1.0f : 0.6f;
+    // Night light window: 6 PM (18.0) to 9 AM (9.0)
+    bool  isNight  = (gameTime >= 18.0f || gameTime < 9.0f);
+    float navBase  = isNight ? 1.0f : 0.45f;
+    float glowSize = isNight ? 1.0f : 0.0f; // halos only at night
 
-    glPushAttrib(GL_CURRENT_BIT | GL_ENABLE_BIT);
+    glPushAttrib(GL_CURRENT_BIT | GL_ENABLE_BIT | GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glDisable(GL_LIGHTING);
+    glDisable(GL_DEPTH_TEST);   // lights always visible
+    glDepthMask(GL_FALSE);
 
-    // Left red navigation light
-    glColor3f(0.8f * navBase, 0.1f * navBase, 0.1f * navBase);
-    glPushMatrix();
-    glTranslatef(-8.5f, 0.2f, 4.9f);
-    glutSolidSphere(0.14f, 10, 10);
+    // ── Left wing: RED nav light ─────────────────────────────────────────────
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glEnable(GL_BLEND);
+    glColor4f(0.95f * navBase, 0.05f, 0.05f, navBlink); // Blinking core
+    glPushMatrix(); glTranslatef(-8.5f, 0.2f, 4.9f);
+    glutSolidSphere(0.02f, 8, 8); // pinpoint core (reduced 70%)
+    if (glowSize > 0.01f) {
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+        glColor4f(1.0f, 0.0f, 0.0f, 0.80f * navBlink);
+        glutSolidSphere(0.05f, 8, 8); // pinpoint glow
+        glColor4f(1.0f, 0.1f, 0.0f, 0.30f * navBlink);
+        glutSolidSphere(0.12f, 6, 6);  // pinpoint halo
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    }
     glPopMatrix();
 
-    // Right green navigation light
-    glColor3f(0.1f * navBase, 0.8f * navBase, 0.1f * navBase);
-    glPushMatrix();
-    glTranslatef(8.5f, 0.2f, 4.9f);
-    glutSolidSphere(0.14f, 10, 10);
+    // ── Right wing: GREEN nav light ──────────────────────────────────────────
+    glColor4f(0.05f, 0.95f * navBase, 0.05f, navBlink);
+    glPushMatrix(); glTranslatef(8.5f, 0.2f, 4.9f);
+    glutSolidSphere(0.02f, 8, 8);
+    if (glowSize > 0.01f) {
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+        glColor4f(0.0f, 1.0f, 0.0f, 0.80f * navBlink);
+        glutSolidSphere(0.05f, 8, 8);
+        glColor4f(0.0f, 1.0f, 0.1f, 0.30f * navBlink);
+        glutSolidSphere(0.12f, 6, 6);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    }
     glPopMatrix();
 
-    // Tail white navigation light
-    glColor3f(1.0f * navBase, 1.0f * navBase, 0.8f * navBase);
-    glPushMatrix();
-    glTranslatef(0.0f, 0.7f, -5.0f);
-    glutSolidSphere(0.12f, 10, 10);
+    // ── Tail: WHITE glowing night light ──────────────────────────────────────
+    glColor4f(navBase, navBase, navBase * 0.9f, navBlink);
+    glPushMatrix(); glTranslatef(0.0f, 0.7f, -5.0f);
+    glutSolidSphere(0.02f, 8, 8);
+    if (glowSize > 0.01f) {
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+        glColor4f(1.0f, 1.0f, 1.0f, 0.90f * navBlink);
+        glutSolidSphere(0.06f, 8, 8);
+        glColor4f(0.9f, 0.9f, 1.0f, 0.35f * navBlink);
+        glutSolidSphere(0.15f, 6, 6);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    }
     glPopMatrix();
 
-    // Wingtip strobe lights (pulsing)
-    float strobeIntensity = isNight ? strobe : (0.5f + 0.5f * strobe);
-    glColor3f(1.0f * strobeIntensity, 1.0f * strobeIntensity, 1.0f * strobeIntensity);
-
-    glPushMatrix();
-    glTranslatef(-8.5f, 0.35f, 4.9f);
-    glutSolidSphere(0.12f, 10, 10);
+    // ── Wingtip STROBE lights (white, sharp triple pulse) ───────────────────
+    // Left wingtip strobe
+    glColor4f(strobe, strobe, strobe, strobe);
+    glPushMatrix(); glTranslatef(-8.5f, 0.35f, 4.9f);
+    glutSolidSphere(0.015f, 6, 6);
+    if (strobe > 0.01f) {
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+        glColor4f(1.0f, 1.0f, 1.0f, strobe);
+        glutSolidSphere(0.08f, 6, 6);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    }
     glPopMatrix();
 
-    glPushMatrix();
-    glTranslatef(8.5f, 0.35f, 4.9f);
-    glutSolidSphere(0.12f, 10, 10);
+    // Right wingtip strobe
+    glColor4f(strobe, strobe, strobe, strobe);
+    glPushMatrix(); glTranslatef(8.5f, 0.35f, 4.9f);
+    glutSolidSphere(0.015f, 6, 6);
+    if (strobe > 0.01f) {
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+        glColor4f(1.0f, 1.0f, 1.0f, strobe);
+        glutSolidSphere(0.08f, 6, 6);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    }
     glPopMatrix();
 
-    if (isNight && navBlink > 0.85f) {
-        // periodic bright forward landing light at nose
-        glColor3f(0.98f, 0.98f, 1.0f);
-        glPushMatrix();
-        glTranslatef(0.0f, -0.2f, 9.2f);
-        glutSolidSphere(0.18f, 12, 12);
+    // ── Nose: landing / taxi light (always blinking at night) ────────────────
+    if (isNight) {
+        glColor4f(0.98f, 0.98f, 1.0f, navBlink);
+        glPushMatrix(); glTranslatef(0.0f, -0.2f, 9.2f);
+        glutSolidSphere(0.025f, 8, 8);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+        glColor4f(0.85f, 0.90f, 1.0f, 0.70f * navBlink);
+        glutSolidSphere(0.08f, 8, 8);
+        glColor4f(0.80f, 0.85f, 1.0f, 0.25f * navBlink);
+        glutSolidSphere(0.17f, 6, 6);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         glPopMatrix();
     }
 
+
+    glDepthMask(GL_TRUE);
     glPopAttrib();
+
+
+
 
     glPopMatrix();
 }
