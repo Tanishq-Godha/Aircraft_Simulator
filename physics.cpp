@@ -37,8 +37,7 @@ bool isSafeLanding(float sinkRate) {
     return gearAnimation > 0.97f &&
            isLandingAligned() &&
            currentSpeed < 285.0f &&
-           sinkRate < 90.0f &&
-           (flaps > 0.25f || currentSpeed < 200.0f);
+           sinkRate < 90.0f;
 }
 
 bool isHardLanding(float sinkRate) {
@@ -309,10 +308,19 @@ void simulatePhysics(float dt) {
         }
     }
 
-    // --- GROUND CLAMPING ---
+    // --- GROUND CLAMPING & SAFETY ---
+    if (planeY < newGround + clearance) {
+        planeY = newGround + clearance;
+        if (vY < -10.0f && !isGrounded) {
+             // We hit the ground but didn't land safe (crash logic already handled above)
+        } else if (vY < 0.0f) {
+            vY = 0.0f; // Prevent digging into ground
+        }
+    }
+
     if (isGrounded) {
         float targetPlaneY = newGround + clearance;
-        if (planeY > targetPlaneY + 2.0f) {
+        if (planeY > targetPlaneY + 5.0f) { // Increased threshold slightly for hills
             isGrounded = false; // Drove off a cliff or ledge
         } else {
             planeY = targetPlaneY;
