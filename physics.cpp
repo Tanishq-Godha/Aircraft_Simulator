@@ -12,12 +12,6 @@ const float kMaxFrameDt = 0.05f;
 const float kMaxAirSpeed = 920.0f;
 const float kMaxTaxiSpeed = 300.0f;
 
-float clampf(float value, float minValue, float maxValue) {
-    if (value < minValue) return minValue;
-    if (value > maxValue) return maxValue;
-    return value;
-}
-
 float approach(float current, float target, float rate, float dt) {
     float alpha = clampf(rate * dt, 0.0f, 1.0f);
     return current + (target - current) * alpha;
@@ -54,8 +48,6 @@ void updateThrottle(float dt) {
     throttle = clampf(throttle, 0.0f, 1.0f);
 }
 
-
-
 void updateLandingGear(float dt) {
     float gearTarget = gearDeployed ? 1.0f : 0.0f;
     bool gearMoving = std::fabs(gearAnimation - gearTarget) > 0.01f;
@@ -83,7 +75,10 @@ void updateLandingGear(float dt) {
 }
 
 void updateTaxiPhysics(float dt) {
-    float steerRate = 32.0f - (currentSpeed * 0.05f);
+    bool onRoad = isRoad(planeX, planeZ) || isRunway(planeX, planeZ);
+    float surfaceFriction = onRoad ? 1.0f : 0.65f; // Grass is bumpy and less grippy
+
+    float steerRate = (32.0f - (currentSpeed * 0.05f)) * (onRoad ? 1.0f : 0.7f);
     if (steerRate < 14.0f) steerRate = 14.0f;
 
     if (keys['q']) yaw += steerRate * dt;
@@ -96,8 +91,8 @@ void updateTaxiPhysics(float dt) {
     pitch = approach(pitch, pitchTarget, 4.0f, dt);
     roll = approach(roll, 0.0f, 9.0f, dt);
 
-    float brakeDrag = keys[' '] ? 210.0f : 35.0f;
-    float targetSpeed = throttle * kMaxTaxiSpeed;
+    float brakeDrag = (keys[' '] ? 210.0f : 35.0f) * (onRoad ? 1.0f : 1.5f);
+    float targetSpeed = throttle * kMaxTaxiSpeed * surfaceFriction;
     currentSpeed = approach(currentSpeed, targetSpeed, 2.8f, dt);
     currentSpeed -= brakeDrag * dt;
     currentSpeed = clampf(currentSpeed, 0.0f, kMaxTaxiSpeed);
@@ -122,29 +117,24 @@ void updateAirPhysics(float dt, float agl) {
     float targetRoll = 0.0f;
     float pitchInput = 0.0f;
 
-    // Roll controls (aileron) for realistic banking
     if (keys['a']) targetRoll = -45.0f;
     else if (keys['d']) targetRoll = 45.0f;
 
     roll = approach(roll, targetRoll, 3.5f, dt);
 
-    // Pitch controls (elevator)
     if (keys['w']) pitchInput = 30.0f;
     if (keys['s']) pitchInput = -30.0f;
 
     pitch += pitchInput * dt;
 
-    // Return toward level pitch gradually when no input
     if (!keys['w'] && !keys['s']) {
         pitch = approach(pitch, 0.0f, 1.5f, dt);
     }
 
-    // Rudder controls (q/e)
     if (keys['q']) yaw += 30.0f * dt;
     if (keys['e']) yaw -= 30.0f * dt;
 
-    // Dynamic yaw from banked turn in aileron mode
-    float bankTurnFactor = 0.8f; // strafing effect from roll
+    float bankTurnFactor = 0.8f; 
     yaw += (roll / 45.0f) * bankTurnFactor * 30.0f * dt;
 
     pitch = clampf(pitch, -22.0f, 28.0f);
@@ -202,16 +192,14 @@ float getMaxSceneHeightUnderPlane(float px, float pz, float pyaw) {
     float fX = std::sin(yRad), fZ = -std::cos(yRad);
     float rX = std::cos(yRad), rZ = std::sin(yRad);
 
-    float length = 10.0f;   // Was 45.0f
-float wingspan = 10.0f; // Was 54.0f
+    float length = 10.0f;   
+    float wingspan = 10.0f; 
 
-    // Point sampling: Center, Nose, Left/Right Wingtips, and mid-fuselage corners
     float hC = getSceneHeight(px, pz);
     float hN = getSceneHeight(px + fX * (length * 0.5f), pz + fZ * (length * 0.5f));
     float hL = getSceneHeight(px - rX * (wingspan * 0.5f), pz - rZ * (wingspan * 0.5f));
     float hR = getSceneHeight(px + rX * (wingspan * 0.5f), pz + rZ * (wingspan * 0.5f));
     
-    // Add fuselage corners for better edge detection
     float hFL = getSceneHeight(px + fX * 15.0f - rX * 10.0f, pz + fZ * 15.0f - rZ * 10.0f);
     float hFR = getSceneHeight(px + fX * 15.0f + rX * 10.0f, pz + fZ * 15.0f + rZ * 10.0f);
     float hBL = getSceneHeight(px - fX * 15.0f - rX * 10.0f, pz - fZ * 15.0f - rZ * 10.0f);
@@ -233,43 +221,26 @@ float wingspan = 10.0f; // Was 54.0f
 }
 
 void simulatePhysics(float dt) {
-    if (crashed) {
-        return;
-    }
+    if (crashed) return;
 
     updateThrottle(dt);
-
-    if (isGrounded) {
-        gearDeployed = true;
-    }
-
+    if (isGrounded) gearDeployed = true;
     updateLandingGear(dt);
 
-    // Get the highest point under the plane's wings/nose (with tolerance)
     float currentGround = getMaxSceneHeightUnderPlane(planeX, planeZ, yaw);
     float agl = planeY - currentGround;
-    if (agl < 0.0f) {
-        agl = 0.0f;
-    }
+    if (agl < 0.0f) agl = 0.0f;
 
     if (isGrounded) updateTaxiPhysics(dt);
     else updateAirPhysics(dt, agl);
 
-    // Store previous Y altitude to calculate horizontal wall crashes
-    // Store previous Y altitude
-    float prevY = planeY;
-
     planeX += vX * dt;
     planeY += vY * dt;
     planeZ += vZ * dt;
-    
 
-    // Get the new ground/obstacle height after moving
     float newGround = getMaxSceneHeightUnderPlane(planeX, planeZ, yaw);
     float clearance = getGearClearance();
 
-    // --- HORIZONTAL WALL COLLISION (FIXED) ---
-    // If the terrain/building height is suddenly taller than our actual flying altitude, we hit a wall!
     if (!isGrounded && newGround > planeY) {
         crashed = true;
         currentSpeed = 0.0f;
@@ -277,14 +248,10 @@ void simulatePhysics(float dt) {
         return;
     }
 
-    // --- VERTICAL COLLISION / LANDING ---
     if (!isGrounded && planeY <= newGround + clearance) {
         float sinkRate = -vY;
-        if (sinkRate < 0.0f) {
-            sinkRate = 0.0f;
-        }
+        if (sinkRate < 0.0f) sinkRate = 0.0f;
 
-        // Must be landing on actual terrain/road, not the roof of a skyscraper
         float baseGround = getVoxelHeight(planeX, planeZ);
         bool onValidRunway = (newGround - baseGround < 20.0f); 
 
@@ -301,7 +268,6 @@ void simulatePhysics(float dt) {
                        : clampf(sinkRate * 0.0045f, 0.08f, 0.35f);
             currentSpeed *= hardTouchdown ? 0.88f : 0.94f;
         } else {
-            // Crash! (Landed too hard or landed on a building roof)
             crashed = true;
             planeY = newGround + clearance; 
             currentSpeed = 0.0f;
@@ -309,11 +275,10 @@ void simulatePhysics(float dt) {
         }
     }
 
-    // --- GROUND CLAMPING ---
     if (isGrounded) {
         float targetPlaneY = newGround + clearance;
         if (planeY > targetPlaneY + 2.0f) {
-            isGrounded = false; // Drove off a cliff or ledge
+            isGrounded = false;
         } else {
             planeY = targetPlaneY;
             isStalling = false;
@@ -321,13 +286,9 @@ void simulatePhysics(float dt) {
     }
 
     engineFanRotation += (180.0f + throttle * 3200.0f - currentSpeed * 0.4f) * dt;
-    if (engineFanRotation > 360.0f) {
-        engineFanRotation = std::fmod(engineFanRotation, 360.0f);
-    }
-
+    if (engineFanRotation > 360.0f) engineFanRotation = std::fmod(engineFanRotation, 360.0f);
     suspension = approach(suspension, 0.0f, isGrounded ? 2.5f : 6.0f, dt);
 }
-
 
 void updateLightTimer(float dt) {
     lightTimer += dt;
@@ -349,15 +310,11 @@ void updatePhysics() {
     float frameDt = (nowMs - lastTickMs) * 0.001f;
     lastTickMs = nowMs;
 
-    // Update game time: 5 min real = 12 hours game (apply timeScale)
     gameTime += frameDt * (12.0f / 300.0f) * timeScale;
     if (gameTime >= 24.0f) gameTime -= 24.0f;
 
-    if (frameDt < 0.0f) {
-        frameDt = 0.0f;
-    } else if (frameDt > kMaxFrameDt) {
-        frameDt = kMaxFrameDt;
-    }
+    if (frameDt < 0.0f) frameDt = 0.0f;
+    else if (frameDt > kMaxFrameDt) frameDt = kMaxFrameDt;
 
     accumulator += frameDt;
     while (accumulator >= kSimulationStep) {
@@ -366,6 +323,5 @@ void updatePhysics() {
     }
 
     updateLightTimer(frameDt);
-
     glutPostRedisplay();
 }

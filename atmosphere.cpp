@@ -26,6 +26,25 @@ void getSunDirection(float& sx, float& sy, float& sz)
     sx /= len; sy /= len; sz /= len;
 }
 
+void getActiveLightDirection(float& dx, float& dy, float& dz, bool& isSun)
+{
+    if (gameTime >= 6.0f && gameTime <= 18.0f) {
+        getSunDirection(dx, dy, dz);
+        isSun = true;
+    } else {
+        float moonTime = gameTime;
+        if (moonTime < 6.0f) moonTime += 24.0f;
+        float t = (moonTime - 18.0f) / 12.0f;
+        float angle = t * M_PI;
+        dy = sinf(angle);
+        dz = -cosf(angle);
+        dx = cosf(angle) * 0.3f;
+        float len = sqrtf(dx*dx + dy*dy + dz*dz);
+        dx /= len; dy /= len; dz /= len;
+        isSun = false;
+    }
+}
+
 // ================= SKY COLOR =================
 void setupSkyClearColor(const WeatherProfile& weather)
 {
@@ -73,23 +92,24 @@ void drawSun(float sunX, float sunY, float sunZ,
 
     // --- SUNSET EFFECT CALCULATIONS ---
     // 'warm' goes from 0.0 (high in sky) to 1.0 (at horizon)
-    // Multiplying by 4.0 makes the color shift happen smoothly but lower in the sky
-    float warm = 1.0f - std::min(1.0f, fabsf(sunY) * 4.0f); 
+    float warm = 1.0f - std::min(1.0f, fabsf(sunY) * 3.5f); 
+    float peak = std::max(0.0f, sunY); // 1.0 at noon
 
     // Illusion: Sun appears larger at the horizon
-    float baseSize = 450.0f; // Much bigger base size (was 220)
-    float size = baseSize * (1.0f + warm * 0.6f); // Up to 60% bigger at sunset
+    float baseSize = 480.0f; 
+    float size = baseSize * (1.1f + warm * 0.7f); 
 
     // Deepen the colors for sunrise/sunset
+    // At peak (noon), it's pure white/blinding. At sunset, it's deep orange/red.
     float r = 1.0f;
-    float g = 0.95f - warm * 0.65f; // Fades from bright yellow to deep orange
-    float b = 0.8f - warm * 0.8f;   // Fades out to leave only red/green channels
+    float g = mixf(0.98f, 0.45f, warm); 
+    float b = mixf(0.85f, 0.15f, warm);   
 
     glPushAttrib(GL_ENABLE_BIT | GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glDisable(GL_LIGHTING);
     glDisable(GL_FOG);
     glDisable(GL_DEPTH_TEST);
-    glDepthMask(GL_FALSE); // Prevent sun from writing to depth buffer
+    glDepthMask(GL_FALSE); 
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE);
@@ -108,15 +128,16 @@ void drawSun(float sunX, float sunY, float sunZ,
     float tUpZ = sunX * rightY - sunY * rightX;
 
     // --- 2. DRAW THE GLOWING CORONA (Halo) ---
-    // Corona spreads out more during sunset due to atmospheric haze
-    float coronaRadius = size * (2.5f + warm * 1.5f);
-    int segments = 32;
+    // Corona is MUCH brighter and larger at peak daytime
+    float coronaRadius = size * (2.8f + peak * 2.2f + warm * 1.5f);
+    float coronaAlpha = 0.6f + peak * 0.3f; // Blinding at noon
+    int segments = 40;
 
     glBegin(GL_TRIANGLE_FAN);
-    glColor4f(r, g, b, 0.8f); // Bright center
+    glColor4f(r, g, b, coronaAlpha); 
     glVertex3f(cx, cy, cz);
     
-    glColor4f(r, g, b, 0.0f); // Fades to transparent
+    glColor4f(r, g, b, 0.0f); 
     for (int i = 0; i <= segments; ++i) {
         float angle = (float)i * (2.0f * M_PI / segments);
         float cosA = cosf(angle);
@@ -180,29 +201,33 @@ void drawSun(float sunX, float sunY, float sunZ,
 // ================= LIGHTING =================
 void setupAtmosphericLighting(const WeatherProfile& weather)
 {
-    float sx, sy, sz;
-    getSunDirection(sx, sy, sz);
+    float dx, dy, dz;
+    bool isSun;
+    getActiveLightDirection(dx, dy, dz, isSun);
 
-    float intensity = std::max(0.1f, sy);
-    if (sy < 0.1f && sy > -0.2f) intensity = 0.1f + (sy + 0.2f) * 0.25f;
+    float intensity = std::max(0.12f, dy);
+    if (!isSun) intensity *= 0.25f; // Moon is dimmer
 
-    float warm = 1.0f - std::min(1.0f, std::fabs(sy) * 3.0f);
-    GLfloat pos[] = {-sx, -sy, -sz, 0.0f};
+    // Sun is much stronger at peak altitude (noon)
+    float peakFactor = isSun ? std::max(0.0f, dy) : 0.0f;
+    float warmFactor = isSun ? (1.0f - std::min(1.0f, std::fabs(dy) * 3.5f)) : 0.0f;
+
+    GLfloat pos[] = {-dx, -dy, -dz, 0.0f};
+
+    // Diffuse increases with peak altitude
+    float diffR = intensity * (1.0f + peakFactor * 0.3f) + warmFactor * 0.5f;
+    float diffG = intensity * (1.0f + peakFactor * 0.3f) + warmFactor * 0.15f;
+    float diffB = intensity * (1.0f + peakFactor * 0.3f);
 
     GLfloat diffuse[] = {
-        std::min(1.0f, intensity * 1.15f + warm * 0.45f),
-        std::min(1.0f, intensity * 1.15f + warm * 0.10f),
-        std::min(1.0f, intensity * 1.15f),
+        std::min(1.0f, diffR),
+        std::min(1.0f, diffG),
+        std::min(1.0f, diffB),
         1.0f
     };
 
-    float ambLevel = 0.15f + std::max(0.0f, sy) * 0.2f;
-    GLfloat ambient[] = {
-        ambLevel,
-        ambLevel,
-        ambLevel,
-        1.0f
-    };
+    float ambLevel = (isSun ? 0.14f : 0.06f) + std::max(0.0f, dy) * 0.22f;
+    GLfloat ambient[] = { ambLevel, ambLevel, ambLevel + (isSun ? 0 : 0.02f), 1.0f };
 
     glEnable(GL_LIGHTING);
     glEnable(GL_LIGHT0);

@@ -4,7 +4,7 @@ CC = g++
 CFLAGS = -Wall -O2
 LDFLAGS = -lGL -lGLU -lglut
 
-SRCS = main.cpp atmosphere.cpp camera.cpp globals.cpp hud.cpp init.cpp input.cpp jet.cpp menu.cpp physics.cpp sky.cpp terrain.cpp
+SRCS = main.cpp atmosphere.cpp camera.cpp globals.cpp hud.cpp init.cpp input.cpp jet.cpp menu.cpp physics.cpp sky.cpp terrain.cpp shader_loader.cpp shadow_system.cpp
 OBJS = $(SRCS:.cpp=.o)
 TARGET = flight_sim
 

@@ -142,15 +142,37 @@ void drawSky(const WeatherProfile& weather)
 
     // NIGHT
     if (gameTime >= 18.5f || gameTime < 6.5f) {
-        float moonX = planeX - sx * 5000.0f;
-        float moonY = planeY - sy * 5000.0f;
-        float moonZ = planeZ - sz * 5000.0f;
+        float lx, ly, lz;
+        bool isSun;
+        getActiveLightDirection(lx, ly, lz, isSun);
 
-        glPushMatrix();
-        glTranslatef(moonX, moonY, moonZ);
-        glColor3f(0.9f, 0.9f, 1.0f);
-        glutSolidSphere(150.0f, 20, 20);
-        glPopMatrix();
+        if (!isSun) {
+            float dist = 8500.0f;
+            float mx = planeX + lx * dist;
+            float my = planeY + ly * dist;
+            float mz = planeZ + lz * dist;
+
+            glPushAttrib(GL_ENABLE_BIT | GL_CURRENT_BIT);
+            glDisable(GL_FOG);
+            glDisable(GL_LIGHTING);
+            
+            glPushMatrix();
+            glTranslatef(mx, my, mz);
+            
+            // Moon Core
+            glColor3f(0.88f, 0.92f, 1.0f);
+            glutSolidSphere(160.0f, 30, 30);
+            
+            // Moon Glow / Halo
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+            glColor4f(0.4f, 0.5f, 0.9f, 0.25f);
+            glutSolidSphere(240.0f, 20, 20);
+            glDisable(GL_BLEND);
+            
+            glPopMatrix();
+            glPopAttrib();
+        }
 
         drawChunkedCloudLayer(weather, defaultNightClouds);
     }
