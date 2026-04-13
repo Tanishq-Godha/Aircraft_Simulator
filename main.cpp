@@ -99,6 +99,22 @@ void display() {
     }
 }
 
+void mainLoop() {
+    static int lastTime = 0;
+    int currentTime = glutGet(GLUT_ELAPSED_TIME);
+    if (lastTime == 0) {
+        lastTime = currentTime;
+        return;
+    }
+    deltaTime = (currentTime - lastTime) * 0.001f;
+    lastTime = currentTime;
+    
+    // Clamp deltaTime to prevent huge jumps (e.g. from moving the window)
+    if (deltaTime > 0.05f) deltaTime = 0.05f;
+
+    updatePhysics();
+}
+
 int main(int argc, char** argv) {
 
     glutInit(&argc, argv);
@@ -113,7 +129,7 @@ int main(int argc, char** argv) {
 
     glutDisplayFunc(display);
     glutReshapeFunc(reshape);
-    glutIdleFunc(updatePhysics);
+    glutIdleFunc(mainLoop);
     glutKeyboardFunc(keyDown);
     glutKeyboardUpFunc(keyUp);
     glutSpecialFunc(specialKeyDown);

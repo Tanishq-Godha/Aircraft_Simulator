@@ -1,12 +1,21 @@
 # Makefile for Aircraft Simulator
-
 CC = g++
 CFLAGS = -Wall -O2
-LDFLAGS = -lGL -lGLU -lglut
+
+ifeq ($(OS),Windows_NT)
+    # Windows Linker Flags
+    LDFLAGS = -lfreeglut -lopengl32 -lglu32
+    TARGET = flight_sim.exe
+    CLEAN_CMD = del /Q /F *.o $(TARGET) 2>NUL || exit 0
+else
+    # Linux Linker Flags
+    LDFLAGS = -lGL -lGLU -lglut
+    TARGET = flight_sim
+    CLEAN_CMD = rm -f *.o $(TARGET)
+endif
 
 SRCS = main.cpp atmosphere.cpp camera.cpp globals.cpp hud.cpp init.cpp input.cpp jet.cpp menu.cpp physics.cpp sky.cpp terrain.cpp shader_loader.cpp shadow_system.cpp
 OBJS = $(SRCS:.cpp=.o)
-TARGET = flight_sim
 
 all: $(TARGET)
 
@@ -17,6 +26,6 @@ $(TARGET): $(OBJS)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -f $(OBJS) $(TARGET)
+	$(CLEAN_CMD)
 
 .PHONY: all clean

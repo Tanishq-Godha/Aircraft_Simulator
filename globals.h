@@ -8,6 +8,7 @@
 extern int screenW, screenH;
 extern bool keys[256];
 extern bool specialKeys[256];
+extern float deltaTime; // Global frame time
 
 // Flight state
 extern float planeX, planeY, planeZ;

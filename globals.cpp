@@ -3,6 +3,7 @@
 int screenW = 1024, screenH = 768;
 bool keys[256];
 bool specialKeys[256];
+float deltaTime = 0.0f;
 
 float planeX = 0.0f, planeY = 412.0f, planeZ = 6200.0f;
 float pitch = 0.0f, roll = 0.0f, yaw = 0.0f;

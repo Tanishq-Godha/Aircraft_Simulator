@@ -71,7 +71,6 @@ Vec3 operator*(const Vec3& v, float scalar) {
     return Vec3(v.x * scalar, v.y * scalar, v.z * scalar);
 }
 
-
 Vec3 operator*(float scalar, const Vec3& v) {
     return v * scalar;
 }
@@ -329,107 +328,90 @@ CameraTarget buildCameraTarget(int cameraMode, int nowMs, float speedRatio) {
     return target;
 }
 
+CameraState g_cameraState;
 } // namespace
 
-void setupCamera() {
-    static CameraState state;
-
+void updateCamera(float dt) {
     int nowMs = glutGet(GLUT_ELAPSED_TIME);
-    float dt = 0.016f;
-    if (state.lastTickMs != 0) {
-        dt = (nowMs - state.lastTickMs) * 0.001f;
-        dt = clampf(dt, 0.001f, 0.05f);
-    }
-    state.lastTickMs = nowMs;
-
     float speedRatio = clampf(currentSpeed / 920.0f, 0.0f, 1.15f);
     CameraTarget target = buildCameraTarget(cameraMode, nowMs, speedRatio);
-    bool modeChanged = state.lastMode != cameraMode;
+    bool modeChanged = g_cameraState.lastMode != cameraMode;
 
-    bool shouldSnap = !state.initialized ||
-                      length(state.position - target.position) > 1800.0f ||
-                      length(state.lookAt - target.lookAt) > 2500.0f;
+    bool shouldSnap = !g_cameraState.initialized ||
+                      length(g_cameraState.position - target.position) > 1800.0f ||
+                      length(g_cameraState.lookAt - target.lookAt) > 2500.0f;
 
     if (shouldSnap) {
-        state.position = target.position;
-        state.velocity = Vec3();
-        state.lookAt = target.lookAt;
-        state.up = target.up;
-        state.fov = target.fov;
-        state.initialized = true;
+        g_cameraState.position = target.position;
+        g_cameraState.velocity = Vec3();
+        g_cameraState.lookAt = target.lookAt;
+        g_cameraState.up = target.up;
+        g_cameraState.fov = target.fov;
+        g_cameraState.initialized = true;
     } else {
         if (cameraMode == 0) {
             const float followRate = 12.0f;
             Vec3 planeVelocity(vX, vY, vZ);
+            
+            // Step camera with plane
+            g_cameraState.position = g_cameraState.position + planeVelocity * dt;
+            g_cameraState.velocity = Vec3();
+            g_cameraState.position = approachVec(g_cameraState.position, target.position, followRate, dt);
+            g_cameraState.lookAt = target.lookAt;
+            g_cameraState.up = target.up;
+            g_cameraState.fov = approach(g_cameraState.fov, target.fov, 4.0f, dt);
 
-            // Predictively move the camera with the plane to eliminate lag
-            state.position = state.position + planeVelocity * dt;
-            state.velocity = Vec3();
-
-            // Smoothly approach the target offset
-            state.position = approachVec(state.position, target.position, followRate, dt);
-            state.lookAt = target.lookAt;
-            state.up = target.up;
-            state.fov = approach(state.fov, target.fov, 4.0f, dt);
-
-            float groundLimit = getInflatedSceneHeight(state.position.x,
-                                                       state.position.z,
+            float groundLimit = getInflatedSceneHeight(g_cameraState.position.x, 
+                                                       g_cameraState.position.z, 
                                                        target.collisionRadius) + target.clearance;
-            if (groundLimit < 1.0f) {
-                groundLimit = 1.0f;
-            }
-            if (state.position.y < groundLimit) {
-                state.position.y = groundLimit;
-            }
+            if (g_cameraState.position.y < groundLimit) g_cameraState.position.y = groundLimit;
 
             Vec3 planePos(planeX, planeY, planeZ);
-            Vec3 cameraToPlane = state.position - planePos;
-            float currentDistance = length(cameraToPlane);
-            if (currentDistance < 4.0f) {
-                state.position = planePos + normalizeOr(cameraToPlane, Vec3(0.0f, 1.0f, 1.0f)) * 4.0f;
+            Vec3 cameraToPlane = g_cameraState.position - planePos;
+            if (length(cameraToPlane) < 4.0f) {
+                g_cameraState.position = planePos + normalizeOr(cameraToPlane, Vec3(0.0f, 1.0f, 1.0f)) * 4.0f;
             }
         } else {
-            if (modeChanged) {
-                state.velocity = state.velocity * 0.25f;
-            }
+            if (modeChanged) g_cameraState.velocity = g_cameraState.velocity * 0.25f;
+            Vec3 accel = (target.position - g_cameraState.position) * target.stiffness
+                       - g_cameraState.velocity * target.damping;
+            g_cameraState.velocity = g_cameraState.velocity + accel * dt;
+            g_cameraState.position = g_cameraState.position + g_cameraState.velocity * dt;
 
-            Vec3 accel = (target.position - state.position) * target.stiffness
-                       - state.velocity * target.damping;
-            state.velocity = state.velocity + accel * dt;
-            state.position = state.position + state.velocity * dt;
-
-            float minHeight = getInflatedSceneHeight(state.position.x,
-                                                     state.position.z,
+            // Ground collision
+            float minHeight = getInflatedSceneHeight(g_cameraState.position.x,
+                                                     g_cameraState.position.z,
                                                      target.collisionRadius) + target.clearance;
-            if (state.position.y < minHeight) {
-                state.position.y = minHeight;
-                if (state.velocity.y < 0.0f) {
-                    state.velocity.y = 0.0f;
-                }
+            if (g_cameraState.position.y < minHeight) {
+                g_cameraState.position.y = minHeight;
+                if (g_cameraState.velocity.y < 0.0f) g_cameraState.velocity.y = 0.0f;
             }
 
-            state.lookAt = approachVec(state.lookAt, target.lookAt, target.lookRate, dt);
-            state.up = normalizeOr(approachVec(state.up, target.up, target.upRate, dt), target.up);
-            state.fov = approach(state.fov, target.fov, target.fovRate, dt);
+            g_cameraState.lookAt = approachVec(g_cameraState.lookAt, target.lookAt, target.lookRate, dt);
+            g_cameraState.up = normalizeOr(approachVec(g_cameraState.up, target.up, target.upRate, dt), target.up);
+            g_cameraState.fov = approach(g_cameraState.fov, target.fov, target.fovRate, dt);
         }
     }
-
-    Vec3 viewDir = normalizeOr(state.lookAt - state.position, Vec3(0.0f, 0.0f, -1.0f));
-    if (std::fabs(dot(viewDir, state.up)) > 0.985f) {
-        state.up = target.up;
+    
+    Vec3 viewDir = normalizeOr(g_cameraState.lookAt - g_cameraState.position, Vec3(0.0f, 0.0f, -1.0f));
+    if (std::fabs(dot(viewDir, g_cameraState.up)) > 0.985f) {
+        g_cameraState.up = target.up;
     }
 
-    state.lastMode = cameraMode;
+    g_cameraState.lastMode = cameraMode;
+}
 
+void setupCamera() {
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    gluPerspective(state.fov,
+    gluPerspective(g_cameraState.fov,
                    float(screenW) / float(screenH),
                    1.0f,
                    30000.0f);
 
     glMatrixMode(GL_MODELVIEW);
-    gluLookAt(state.position.x, state.position.y, state.position.z,
-              state.lookAt.x, state.lookAt.y, state.lookAt.z,
-              state.up.x, state.up.y, state.up.z);
+    glLoadIdentity();
+    gluLookAt(g_cameraState.position.x, g_cameraState.position.y, g_cameraState.position.z,
+              g_cameraState.lookAt.x, g_cameraState.lookAt.y, g_cameraState.lookAt.z,
+              g_cameraState.up.x, g_cameraState.up.y, g_cameraState.up.z);
 }

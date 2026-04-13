@@ -63,12 +63,16 @@ bool isRoad(float x, float z) {
 
     float major = BLOCK_SIZE * 20.0f;
     float minor = BLOCK_SIZE * 8.0f;
-    float dxMajor = fmod(fabs(x), major);
-    float dzMajor = fmod(fabs(z), major);
-    float dxMinor = fmod(fabs(x + sin(z * 0.001f) * 200), minor);
-    float dzMinor = fmod(fabs(z + cos(x * 0.001f) * 200), minor);
+    
+    float ax = std::fabs(x);
+    float az = std::fabs(z);
 
-    return (dxMajor < BLOCK_SIZE * 2 || dzMajor < BLOCK_SIZE * 2 ||
+    float dxMajor = std::fmod(ax, major);
+    float dzMajor = std::fmod(az, major);
+    float dxMinor = std::fmod(ax, minor);
+    float dzMinor = std::fmod(az, minor);
+
+    return (dxMajor < BLOCK_SIZE * 2.0f || dzMajor < BLOCK_SIZE * 2.0f ||
             dxMinor < BLOCK_SIZE || dzMinor < BLOCK_SIZE);
 }
 
@@ -77,9 +81,7 @@ bool isRoad(float x, float z) {
 // --------------------------------------------------
 
 float getVoxelHeight(float x, float z) {
-    if (isInAirportArea(x, z)) return 400.0f;
-    float h = noise(x * 0.0003f, z * 0.0003f) * BLOCK_SIZE * 3;
-    return BLOCK_SIZE + h;
+    return 400.0f;
 }
 
 // Check if a building should exist at this voxel
@@ -162,24 +164,76 @@ void drawCube(float x, float y, float z,
 // --------------------------------------------------
 
 void drawTree(float x, float z, float ground) {
+    float hBase = hash(x, z);
+    float time = glutGet(GLUT_ELAPSED_TIME) * 0.001f;
+    
+    // Subtle Wind Sway (stronger at the top)
+    float swayX = std::sin(time * 0.8f + x * 0.01f) * 6.0f;
+    float swayZ = std::cos(time * 0.7f + z * 0.01f) * 6.0f;
+    
+    float trunkH = 100.0f + hBase * 80.0f;
+    float trunkW = 20.0f + hBase * 10.0f;
+    
+    // --- Trunk ---
+    // Slightly wider base
+    drawCube(x, ground + trunkH * 0.1f, z, trunkW * 1.4f, trunkH * 0.2f, trunkW * 1.4f, 0.3f, 0.18f, 0.1f);
+    // Main shaft
+    drawCube(x, ground + trunkH * 0.5f, z, trunkW, trunkH, trunkW, 0.38f, 0.24f, 0.14f);
+    
+    // --- Foliage ---
+    if (hBase > 0.55f) {
+        // TYPE A: CONIFER (Pine-like, Tapered)
+        int layers = 6; // Increased from 5 to fill gaps
+        float foliageStart = ground + trunkH * 0.45f; // Lowered slightly
+        float foliageHeightTotal = trunkH * 1.0f;
+        
+        for (int i = 0; i < layers; ++i) {
+            float t = (float)i / (float)(layers - 1);
+            float layerY = foliageStart + foliageHeightTotal * t;
+            float layerWidth = (1.4f - t) * (100.0f + hBase * 40.0f);
+            
+            // Sway increases with height (t)
+            float offX = swayX * t;
+            float offZ = swayZ * t;
+            
+            float r = 0.05f + t * 0.1f;
+            float g = 0.35f + t * 0.15f;
+            float b = 0.1f;
+            
+            // Increased thickness from 45 to 65 to close gaps
+            drawCube(x + offX, layerY, z + offZ, layerWidth, 65.0f, layerWidth, r, g, b);
+        }
+    } else {
+        // TYPE B: BROADLEAF (Oak-like, Clustered)
+        float crownBaseY = ground + trunkH - 5.0f; // Lowered to overlap trunk
+        float crownSize = 100.0f + hBase * 60.0f;
+        
+        // Move entire crown with sway
+        float cx = x + swayX;
+        float cz = z + swayZ;
+        
+        // 5-cluster bunch
+        float rBase = 0.1f + hBase * 0.15f;
+        float gBase = 0.45f + hBase * 0.1f;
+        float bBase = 0.1f;
 
-    float trunkH = 80 + hash(x, z) * 40;
-
-    drawCube(x, ground + trunkH/2, z,
-             20, trunkH, 20,
-             0.4f, 0.25f, 0.1f);
-
-    drawCube(x, ground + trunkH + 40, z,
-             80, 60, 80,
-             0.1f, 0.6f, 0.1f);
-
-    drawCube(x, ground + trunkH + 80, z,
-             60, 50, 60,
-             0.1f, 0.7f, 0.1f);
-
-    drawCube(x, ground + trunkH + 110, z,
-             40, 40, 40,
-             0.2f, 0.8f, 0.2f);
+        // Center cluster
+        drawCube(cx, crownBaseY + 45, cz, crownSize, crownSize * 1.0f, crownSize, rBase, gBase, bBase);
+        
+        // Orbiting clusters
+        float orbit = crownSize * 0.45f;
+        float oSize = crownSize * 0.85f; // Slightly larger to close gaps
+        drawCube(cx + orbit, crownBaseY, cz, oSize, oSize * 0.7f, oSize, rBase*0.8f, gBase*1.1f, bBase);
+        drawCube(cx - orbit, crownBaseY, cz, oSize, oSize * 0.7f, oSize, rBase*1.1f, gBase*0.8f, bBase);
+        drawCube(cx, crownBaseY, cz + orbit, oSize, oSize * 0.7f, oSize, rBase*0.9f, gBase*0.9f, bBase);
+        drawCube(cx, crownBaseY, cz - orbit, oSize, oSize * 0.7f, oSize, rBase*0.75f, gBase*1.05f, bBase);
+        
+        // Add "Fruit/Highlights"
+        if (hBase > 0.4f) {
+             drawCube(cx + orbit, crownBaseY + 20, cz + orbit, 15, 15, 15, 0.8f, 0.2f, 0.1f);
+             drawCube(cx - orbit, crownBaseY + 10, cz - orbit, 15, 15, 15, 0.8f, 0.2f, 0.1f);
+        }
+    }
 }
 
 // --------------------------------------------------
@@ -434,10 +488,8 @@ void drawVoxelTerrain() {
                 continue;
             }
             if (isRoad(x, z)) {
-                drawCube(x, ground/2, z, step, ground, step, 0.1f, 0.1f, 0.1f);
-                if (fmod(x, BLOCK_SIZE * 4) < BLOCK_SIZE) {
-                    drawCube(x, ground + 5, z, step * 0.1f, 5, step * 0.6f, 1.0f, 1.0f, 0.2f);
-                }
+                // Slightly lighter grey base so shader grain has more contrast
+                drawCube(x, ground/2, z, step, ground, step, 0.15f, 0.15f, 0.15f);
                 continue; 
             }
 

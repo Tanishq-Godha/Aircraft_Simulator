@@ -1,6 +1,7 @@
 #include "physics.h"
 #include "globals.h"
 #include "terrain.h"
+#include "camera.h"
 #include "math_utils.h"
 #include <GL/glut.h>
 #include <cmath>
@@ -433,6 +434,7 @@ void simulatePhysics(float dt) {
     if (engineFanRotation > 360.0f)
         engineFanRotation = std::fmod(engineFanRotation, 360.0f);
 
+    updateCamera(dt);
     suspension = approach(suspension, 0.0f, isGrounded ? 2.5f : 6.0f, dt);
 }
 
@@ -445,38 +447,25 @@ void updateLightTimer(float dt) {
 } // namespace
 
 void updatePhysics() {
-    static int   lastTickMs  = 0;
     static float accumulator = 0.0f;
-
-    int nowMs = glutGet(GLUT_ELAPSED_TIME);
-    if (lastTickMs == 0) {
-        lastTickMs = nowMs;
-        glutPostRedisplay();
-    }
-
-    float frameDt = (nowMs - lastTickMs) * 0.001f;
-    lastTickMs = nowMs;
 
     if (isPaused) {
         glutPostRedisplay();
         return;
     }
 
-    gameTime += frameDt * (12.0f / 300.0f) * timeScale;
+    gameTime += deltaTime * (12.0f / 300.0f) * timeScale;
     if (gameTime >= 24.0f) gameTime -= 24.0f;
 
-    if (frameDt < 0.0f)             frameDt = 0.0f;
-    else if (frameDt > kMaxFrameDt) frameDt = kMaxFrameDt;
+    // Tick the auto-land cinematic timer
+    if (autoLandOn) updateAutoLand(deltaTime);
 
-    // Always tick the auto-land cinematic timer (even while physics skip)
-    if (autoLandOn) updateAutoLand(frameDt);
-
-    accumulator += frameDt;
+    accumulator += deltaTime;
     while (accumulator >= kSimulationStep) {
         simulatePhysics(kSimulationStep);
         accumulator -= kSimulationStep;
     }
 
-    updateLightTimer(frameDt);
+    updateLightTimer(deltaTime);
     glutPostRedisplay();
 }
