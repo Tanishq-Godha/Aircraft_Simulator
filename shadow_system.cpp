@@ -170,7 +170,7 @@ void ShadowSystem::setupLightSpace(float sunX, float sunY, float sunZ, float px,
     glMatrixMode(GL_PROJECTION);
     glPushMatrix(); glLoadIdentity();
     
-    float orthoSize = 600.0f; // Focused for silhouette detail
+    float orthoSize = 4000.0f; // Greatly expanded to capture distant shadows ahead/behind
     glOrtho(-orthoSize, orthoSize, -orthoSize, orthoSize, 100.0f, 15000.0f);
     float proj[16]; glGetFloatv(GL_PROJECTION_MATRIX, proj);
     

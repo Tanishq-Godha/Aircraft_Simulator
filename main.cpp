@@ -30,34 +30,36 @@ void display() {
         bool isSun;
         getActiveLightDirection(lx, ly, lz, isSun);
 
-        // 1. SHADOW PASS (Render depth from light POV)
-        gShadows.setupLightSpace(lx, ly, lz, planeX, planeY, planeZ);
-        gShadows.bindShadowPass();
-        
-        glMatrixMode(GL_PROJECTION);
-        glPushMatrix();
-        glLoadIdentity();
-        float orthoSize = 600.0f; 
-        glOrtho(-orthoSize, orthoSize, -orthoSize, orthoSize, 100.0f, 15000.0f);
-        
-        glMatrixMode(GL_MODELVIEW);
-        glPushMatrix();
-        glLoadIdentity();
-        float dist = 8000.0f;
-        gluLookAt(planeX + lx * dist, planeY + ly * dist, planeZ + lz * dist,
-                  planeX, planeY, planeZ, 0, 1, 0);
+        // 1. SHADOW PASS (Render depth from light POV) - ONLY DURING DAYTIME
+        if (isSun) {
+            gShadows.setupLightSpace(lx, ly, lz, planeX, planeY, planeZ);
+            gShadows.bindShadowPass();
+            
+            glMatrixMode(GL_PROJECTION);
+            glPushMatrix();
+            glLoadIdentity();
+            float orthoSize = 4000.0f; // Greatly expanded to capture distant shadows ahead/behind
+            glOrtho(-orthoSize, orthoSize, -orthoSize, orthoSize, 100.0f, 15000.0f);
+            
+            glMatrixMode(GL_MODELVIEW);
+            glPushMatrix();
+            glLoadIdentity();
+            float dist = 8000.0f;
+            gluLookAt(planeX + lx * dist, planeY + ly * dist, planeZ + lz * dist,
+                      planeX, planeY, planeZ, 0, 1, 0);
 
-        // Draw objects that cast shadows
-        drawVoxelTerrain();
-        drawDetailedJet();
+            // Draw objects that cast shadows
+            drawVoxelTerrain();
+            drawDetailedJet();
 
-        glPopMatrix();
-        glMatrixMode(GL_PROJECTION);
-        glPopMatrix();
-        glMatrixMode(GL_MODELVIEW);
-        
-        // Restore default framebuffer/shader state before clearing the screen
-        gShadows.unbind();
+            glPopMatrix();
+            glMatrixMode(GL_PROJECTION);
+            glPopMatrix();
+            glMatrixMode(GL_MODELVIEW);
+            
+            // Restore default framebuffer/shader state before clearing the screen
+            gShadows.unbind();
+        }
 
         // 2. MAIN PASS (Render shaded scene)
         glViewport(0, 0, screenW, screenH); 
@@ -79,7 +81,10 @@ void display() {
         setupAtmosphericLighting(weather);
 
         // Draw with shaders - passing weather for fog sync
-        gShadows.bindMainPass(lx, ly, lz, camMatrix, weather, skyColor[0], skyColor[1], skyColor[2]);
+        // Only apply shadows during daytime
+        if (isSun) {
+            gShadows.bindMainPass(lx, ly, lz, camMatrix, weather, skyColor[0], skyColor[1], skyColor[2]);
+        }
         drawVoxelTerrain();
         drawDetailedJet();
 

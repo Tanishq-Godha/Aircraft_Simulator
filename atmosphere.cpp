@@ -11,7 +11,8 @@
 // ================= SUN DIRECTION =================
 void getSunDirection(float& sx, float& sy, float& sz)
 {
-    float t = (gameTime - 6.0f) / 12.0f;
+    // 6:30 AM = sunrise, 7:00 PM = sunset (12.5 hours of daylight)
+    float t = (gameTime - 6.5f) / 12.5f;
 
     if (t < 0.0f) t = 0.0f;
     if (t > 1.0f) t = 1.0f;
@@ -28,13 +29,15 @@ void getSunDirection(float& sx, float& sy, float& sz)
 
 void getActiveLightDirection(float& dx, float& dy, float& dz, bool& isSun)
 {
-    if (gameTime >= 6.0f && gameTime <= 18.0f) {
+    // 6:30 AM to 7:00 PM = daytime with sun
+    if (gameTime >= 6.5f && gameTime <= 19.0f) {
         getSunDirection(dx, dy, dz);
         isSun = true;
     } else {
+        // Night: use moon (much dimmer lighting)
         float moonTime = gameTime;
-        if (moonTime < 6.0f) moonTime += 24.0f;
-        float t = (moonTime - 18.0f) / 12.0f;
+        if (moonTime < 6.5f) moonTime += 24.0f;
+        float t = (moonTime - 19.0f) / 11.5f;  // 7 PM to 6:30 AM
         float angle = t * M_PI;
         dy = sinf(angle);
         dz = -cosf(angle);
@@ -49,16 +52,15 @@ void getActiveLightDirection(float& dx, float& dy, float& dz, bool& isSun)
 void setupSkyClearColor(const WeatherProfile& weather)
 {
     // Compute TRUE sun elevation directly from gameTime.
-    // getSunDirection() clamps t to [0,1], so at night sy stays at 0
-    // (looks like permanent sunset orange). We bypass that here.
+    // 6:30 AM to 7:00 PM = daytime
     float sunElev;
-    if (gameTime >= 6.0f && gameTime <= 18.0f) {
-        float t = (gameTime - 6.0f) / 12.0f;
+    if (gameTime >= 6.5f && gameTime <= 19.0f) {
+        float t = (gameTime - 6.5f) / 12.5f;
         sunElev = std::sin(t * (float)M_PI);   // 0 at dawn/dusk, 1 at noon
     } else {
-        float nt = (gameTime > 18.0f) ? (gameTime - 18.0f)
-                                      : (gameTime + 6.0f);
-        sunElev = -std::sin((nt / 12.0f) * (float)M_PI); // negative = below horizon
+        float nt = (gameTime > 19.0f) ? (gameTime - 19.0f)
+                                      : (gameTime + 5.0f);  // 5 hours from midnight to 6:30 AM
+        sunElev = -std::sin((nt / 11.5f) * (float)M_PI); // negative = below horizon
     }
 
     float r, g, b;
@@ -91,12 +93,12 @@ void setupAtmosphericFog(const WeatherProfile& weather)
 {
     // Match fog color to sky: dark navy at night, hazy blue by day
     float sunElev;
-    if (gameTime >= 6.0f && gameTime <= 18.0f) {
-        float t = (gameTime - 6.0f) / 12.0f;
+    if (gameTime >= 6.5f && gameTime <= 19.0f) {
+        float t = (gameTime - 6.5f) / 12.5f;
         sunElev = std::sin(t * (float)M_PI);
     } else {
-        float nt = (gameTime > 18.0f) ? (gameTime - 18.0f) : (gameTime + 6.0f);
-        sunElev = -std::sin((nt / 12.0f) * (float)M_PI);
+        float nt = (gameTime > 19.0f) ? (gameTime - 19.0f) : (gameTime + 5.0f);
+        sunElev = -std::sin((nt / 11.5f) * (float)M_PI);
     }
     float day = clampf(sunElev, 0.0f, 1.0f);
 
@@ -145,8 +147,8 @@ void drawSun(float sunX, float sunY, float sunZ,
     glPushAttrib(GL_ENABLE_BIT | GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glDisable(GL_LIGHTING);
     glDisable(GL_FOG);
-    glDisable(GL_DEPTH_TEST);
-    glDepthMask(GL_FALSE); 
+    glEnable(GL_DEPTH_TEST);  // Keep depth testing so buildings block sun
+    glDepthMask(GL_FALSE);  // Don't write to depth buffer 
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE);

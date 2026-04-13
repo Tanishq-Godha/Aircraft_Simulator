@@ -4,8 +4,10 @@ CFLAGS = -Wall -O2
 
 ifeq ($(OS),Windows_NT)
     # Windows Linker Flags
-    LDFLAGS = -lfreeglut -lopengl32 -lglu32
-    TARGET = flight_sim.exe
+    FREEGLUT_PATH = C:\freeglut-3.8.0
+    CFLAGS = -Wall -O2 -I$(FREEGLUT_PATH)\include
+    LDFLAGS = -L$(FREEGLUT_PATH)\build\lib -lfreeglut -lopengl32 -lglu32
+    TARGET = voxel_flight.exe
     CLEAN_CMD = del /Q /F *.o $(TARGET) 2>NUL || exit 0
 else
     # Linux Linker Flags

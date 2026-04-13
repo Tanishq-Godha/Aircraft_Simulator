@@ -16,6 +16,7 @@ const float kSimulationStep = 1.0f / 120.0f;
 const float kMaxFrameDt     = 0.05f;
 const float kMaxAirSpeed    = 920.0f;
 const float kMaxTaxiSpeed   = 300.0f;
+const float kGravity        = 180.0f;  // Game units/s² (tuned for game scale)
 
 const float RWY_X = 0.0f;
 const float RWY_Z = 6200.0f;
@@ -215,9 +216,17 @@ void updateAirPhysics(float dt, float agl) {
     float stallSpeed = 145.0f - (flaps * 30.0f) + (gearAnimation * 10.0f);
     isStalling = currentSpeed < stallSpeed && pitch > 10.0f;
 
+    // Calculate lift-based vertical velocity from pitch angle
     vX = fX * currentSpeed;
     vY = fY * currentSpeed + (flapLift * dt);
     vZ = fZ * currentSpeed;
+
+    // Apply gravity (pulling plane down when speed is low)
+    vY -= kGravity * dt;
+
+    // At high speeds, lift partially counteracts gravity
+    float liftBonus = std::max(0.0f, (currentSpeed - 150.0f) * 0.15f);
+    vY += liftBonus * dt;
 
     if (isStalling) {
         vY -= 90.0f * dt;
