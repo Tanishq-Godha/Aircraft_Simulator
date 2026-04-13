@@ -76,5 +76,8 @@ extern float screenFade;
 // Weather control (0=Dynamic, 1=Clear, 2=Cloudy, 3=Foggy)
 extern int weatherMode;
 
+// Textures
+extern GLuint cloudTextureId;
+
 #endif
 

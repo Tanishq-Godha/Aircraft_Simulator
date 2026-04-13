@@ -12,8 +12,10 @@ void reshape(int w, int h) {
 }
 
 #include "shadow_system.h"
+#include "sky.h"
 
 void init() {
+    initSky();
     glClearColor(0.4f, 0.7f, 1.0f, 1.0f); 
     glEnable(GL_DEPTH_TEST);              
     glEnable(GL_NORMALIZE); 

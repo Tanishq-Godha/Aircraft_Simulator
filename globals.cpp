@@ -67,3 +67,5 @@ float screenFade = 0.0f;
 // Weather control (0=Dynamic, 1=Clear, 2=Cloudy, 3=Foggy)
 int weatherMode = 0;
 
+GLuint cloudTextureId = 0;
+

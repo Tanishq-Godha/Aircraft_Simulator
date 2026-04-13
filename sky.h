@@ -35,6 +35,7 @@ struct CloudLayerConfig {
 };
 
 WeatherProfile getWeatherProfile();
+void initSky();
 void drawSky(const WeatherProfile& weather);
 
 #endif

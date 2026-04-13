@@ -77,6 +77,57 @@ bool isRoad(float x, float z) {
 }
 
 // --------------------------------------------------
+// BUILDINGS LOGIC (Moved up to resolve declaration order)
+// --------------------------------------------------
+
+float getBuildingHeight(float x, float z) {
+    float dist = sqrt(x*x + z*z);
+
+    float base = BLOCK_SIZE * (2 + hash(x, z) * 6);
+    float centerBoost = exp(-dist * 0.0002f);
+
+    return base + centerBoost * BLOCK_SIZE * 12 * hash(z, x);
+}
+
+// Helper to find the building root for a given coordinate
+void getPotentialBuildingRoot(float x, float z, float& rx, float& rz) {
+    rx = std::floor(x / (BLOCK_SIZE * 3.0f) + 0.5f) * (BLOCK_SIZE * 3.0f);
+    rz = std::floor(z / (BLOCK_SIZE * 3.0f) + 0.5f) * (BLOCK_SIZE * 3.0f);
+}
+
+// Get dimensions for a building at a specific root
+void getBuildingDimensionsAtRoot(float rx, float rz, float& w, float& d, float& h) {
+    w = BLOCK_SIZE * (2.0f + hash(rx, rz) * 3.5f);
+    d = BLOCK_SIZE * (1.5f + hash(rz, rx) * 3.0f);
+    h = getBuildingHeight(rx, rz);
+}
+
+// Check if a building ACTUALLY spawns at a given root (rx, rz)
+// (Matches logic in hasBuilding)
+bool doesBuildingRootSpawn(float rx, float rz);
+
+struct BuildingRect {
+    float x1, z1, x2, z2;
+};
+
+inline bool intersect(const BuildingRect& a, const BuildingRect& b) {
+    return (a.x1 < b.x2 && a.x2 > b.x1 &&
+            a.z1 < b.z2 && a.z2 > b.z1);
+}
+
+void getBuildingFootprint(float rx, float rz, BuildingRect& foot) {
+    float w, d, h;
+    getBuildingDimensionsAtRoot(rx, rz, w, d, h);
+    foot.x1 = rx - w/2.0f;
+    foot.x2 = rx + w/2.0f;
+    foot.z1 = rz - d/2.0f;
+    foot.z2 = rz + d/2.0f;
+}
+
+// Higher-level check that prevents overlapping buildings via priority suppression
+bool shouldActualBuildingSpawn(float rx, float rz);
+
+// --------------------------------------------------
 // HEIGHT
 // --------------------------------------------------
 
@@ -95,9 +146,13 @@ bool hasBuilding(float x, float z) {
         return false;
     }
     if (isRoad(x, z)) return false;
-    if (!(fmod(x, BLOCK_SIZE * 3) < BLOCK_SIZE && fmod(z, BLOCK_SIZE * 3) < BLOCK_SIZE)) return false;
     float bHash = hash(floor(x / (BLOCK_SIZE*4)), floor(z / (BLOCK_SIZE*4)));
-    return (bHash >= 0.8f);
+    if (bHash < 0.8f) return false;
+
+    // Check suppression
+    float rx, rz;
+    getPotentialBuildingRoot(x, z, rx, rz);
+    return shouldActualBuildingSpawn(rx, rz);
 }
 
 bool hasTree(float x, float z) {
@@ -237,6 +292,54 @@ void drawTree(float x, float z, float ground) {
 }
 
 // --------------------------------------------------
+// Check if a building ACTUALLY spawns at a given root (rx, rz)
+// (Matches logic in hasBuilding)
+bool doesBuildingRootSpawn(float rx, float rz) {
+    if (isInAirportArea(rx, rz)) {
+        return (std::fabs(rx - 900.0f) < 50.0f && std::fabs(rz - 450.0f) < 50.0f);
+    }
+    if (isRoad(rx, rz)) return false;
+    float bHash = hash(std::floor(rx / (BLOCK_SIZE * 4.0f)), std::floor(rz / (BLOCK_SIZE * 4.0f)));
+    return (bHash >= 0.8f);
+}
+
+// Higher-level check that prevents overlapping buildings via priority suppression
+bool shouldActualBuildingSpawn(float rx, float rz) {
+    if (!doesBuildingRootSpawn(rx, rz)) return false;
+    if (isInAirportArea(rx, rz)) return true; // Hand-placed airport area is exempt from suppression
+
+    BuildingRect myFoot;
+    getBuildingFootprint(rx, rz, myFoot);
+    float myPriority = hash(rx, rz);
+
+    // Scan neighbors (+/- 1 grid step)
+    float step = BLOCK_SIZE * 3.0f;
+    for (int offX = -1; offX <= 1; ++offX) {
+        for (int offZ = -1; offZ <= 1; ++offZ) {
+            if (offX == 0 && offZ == 0) continue;
+
+            float nx = rx + offX * step;
+            float nz = rz + offZ * step;
+
+            if (doesBuildingRootSpawn(nx, nz)) {
+                BuildingRect neighborFoot;
+                getBuildingFootprint(nx, nz, neighborFoot);
+
+                if (intersect(myFoot, neighborFoot)) {
+                    float neighborPriority = hash(nx, nz);
+                    // Use priority to decide: lower priority is suppressed
+                    if (neighborPriority > myPriority) return false;
+                    // If priorities are equal (extremely rare), break tie with coordinate
+                    if (neighborPriority == myPriority && (nx > rx || (nx == rx && nz > rz))) return false;
+                }
+            }
+        }
+    }
+
+    return true;
+}
+
+// --------------------------------------------------
 // HOUSES
 // --------------------------------------------------
 
@@ -254,41 +357,6 @@ void drawHouse(float x, float z, float ground) {
              0.5f, 0.1f, 0.1f);
 }
 
-// --------------------------------------------------
-// BUILDINGS
-// --------------------------------------------------
-
-float getBuildingHeight(float x, float z) {
-    float dist = sqrt(x*x + z*z);
-
-    float base = BLOCK_SIZE * (2 + hash(x, z) * 6);
-    float centerBoost = exp(-dist * 0.0002f);
-
-    return base + centerBoost * BLOCK_SIZE * 12 * hash(z, x);
-}
-
-// Helper to find the building root for a given coordinate
-void getPotentialBuildingRoot(float x, float z, float& rx, float& rz) {
-    rx = std::floor(x / (BLOCK_SIZE * 3.0f) + 0.5f) * (BLOCK_SIZE * 3.0f);
-    rz = std::floor(z / (BLOCK_SIZE * 3.0f) + 0.5f) * (BLOCK_SIZE * 3.0f);
-}
-
-// Check if a building ACTUALLY spawns at a given root (rx, rz)
-bool doesBuildingRootSpawn(float rx, float rz) {
-    if (isInAirportArea(rx, rz)) {
-        return (std::fabs(rx - 900.0f) < 50.0f && std::fabs(rz - 450.0f) < 50.0f);
-    }
-    if (isRoad(rx, rz)) return false;
-    float bHash = hash(std::floor(rx / (BLOCK_SIZE * 4.0f)), std::floor(rz / (BLOCK_SIZE * 4.0f)));
-    return (bHash >= 0.8f);
-}
-
-// Get dimensions for a building at a specific root
-void getBuildingDimensionsAtRoot(float rx, float rz, float& w, float& d, float& h) {
-    w = BLOCK_SIZE * (2.0f + hash(rx, rz) * 3.5f);
-    d = BLOCK_SIZE * (1.5f + hash(rz, rx) * 3.0f);
-    h = getBuildingHeight(rx, rz);
-}
 
 void drawAirportTower(float x, float z, float ground) {
     float h = 650.0f;
@@ -355,7 +423,6 @@ void drawBuilding(float x, float z, float ground) {
         glDisable(GL_LIGHTING); // Make windows "glow"
 
         // Draw rows of windows on each face
-        float winW = w * 0.12f;
         float winH = 12.0f;
         float winSpacing = 22.0f;
         
@@ -415,7 +482,7 @@ float getSceneHeight(float x, float z) {
             float rx = baseRx + offX * step;
             float rz = baseRz + offZ * step;
 
-            if (doesBuildingRootSpawn(rx, rz)) {
+            if (shouldActualBuildingSpawn(rx, rz)) {
                 float w, d, h;
                 getBuildingDimensionsAtRoot(rx, rz, w, d, h);
                 
@@ -499,7 +566,7 @@ void drawVoxelTerrain() {
             // 4. OBJECTS
             if (fmod(std::fabs(x), BLOCK_SIZE * 3) < BLOCK_SIZE &&
                 fmod(std::fabs(z), BLOCK_SIZE * 3) < BLOCK_SIZE) {
-                if (doesBuildingRootSpawn(x, z)) {
+                if (shouldActualBuildingSpawn(x, z)) {
                     drawBuilding(x, z, ground);
                 }
             }
