@@ -88,9 +88,33 @@ void setupSkyClearColor(const WeatherProfile& weather)
     glClearColor(r, g, b, 1.0f);
 }
 
+void getSkyColor(float& r, float& g, float& b)
+{
+    float sunElev;
+    if (gameTime >= 6.5f && gameTime <= 19.0f) {
+        float t = (gameTime - 6.5f) / 12.5f;
+        sunElev = std::sin(t * (float)M_PI);
+    } else {
+        float nt = (gameTime > 19.0f) ? (gameTime - 19.0f) : (gameTime + 5.0f);
+        sunElev = -std::sin((nt / 11.5f) * (float)M_PI);
+    }
+
+    if (sunElev <= -0.10f) {
+        float depth = clampf((-sunElev - 0.10f) / 0.40f, 0.0f, 1.0f);
+        r = mixf(0.04f, 0.01f, depth); g = mixf(0.04f, 0.01f, depth); b = mixf(0.13f, 0.03f, depth);
+    } else if (sunElev < 0.12f) {
+        float t = (sunElev + 0.10f) / 0.22f;
+        r = mixf(0.75f, 0.50f, t); g = mixf(0.25f, 0.60f, t); b = mixf(0.12f, 0.88f, t);
+    } else {
+        float day = clampf(sunElev, 0.0f, 1.0f);
+        r = mixf(0.38f, 0.46f, day); g = mixf(0.58f, 0.66f, day); b = mixf(0.84f, 0.96f, day);
+    }
+}
+
 // ================= FOG =================
 void setupAtmosphericFog(const WeatherProfile& weather)
 {
+    glEnable(GL_FOG); // Ensure fog runs for terrain after clouds turn it off
     // Match fog color to sky: dark navy at night, hazy blue by day
     float sunElev;
     if (gameTime >= 6.5f && gameTime <= 19.0f) {

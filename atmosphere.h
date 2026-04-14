@@ -13,7 +13,5 @@ void getActiveLightDirection(float& dx, float& dy, float& dz, bool& isSun);
 void drawSun(float sunX, float sunY, float sunZ, 
              float elevation, const WeatherProfile& weather);
 
-
-             
-
+void getSkyColor(float& r, float& g, float& b);
 #endif

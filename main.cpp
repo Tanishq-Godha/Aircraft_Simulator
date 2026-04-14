@@ -20,6 +20,7 @@
 #include "math_utils.h"
 
 #include "shadow_system.h"
+#include "model_loader.h"
 
 void display() {
     if (gameState == 0) {
@@ -50,7 +51,7 @@ void display() {
 
             // Draw objects that cast shadows
             drawVoxelTerrain();
-            drawDetailedJet();
+            drawJet();
 
             glPopMatrix();
             glMatrixMode(GL_PROJECTION);
@@ -86,9 +87,10 @@ void display() {
             gShadows.bindMainPass(lx, ly, lz, camMatrix, weather, skyColor[0], skyColor[1], skyColor[2]);
         }
         drawVoxelTerrain();
-        drawDetailedJet();
+        drawJet();
+        drawExplosionAndSparks();
 
-        
+
         // Draw Sky/Clouds FIRST so world objects don't cover them
         gShadows.unbind();
         drawSky(weather);
@@ -101,6 +103,10 @@ void display() {
         drawControls();
     } else if (gameState == 3) {
         drawMapSelect();
+    } else if (gameState == 4) {
+        drawPlaneSelect();
+    } else if (gameState == 5) {
+        drawModelSettings();
     }
 }
 

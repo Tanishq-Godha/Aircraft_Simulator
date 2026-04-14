@@ -25,16 +25,18 @@ float suspension = 0.0f;
 float wheelRotation = 0.0f;
 float engineFanRotation = 0.0f;
 
-// Flaps
-float flaps = 0.0f;
-float flapLift = 0.0f;
-float flapDrag = 0.0f;
+// Crash Effects
+bool isBellyLanding = false;
+float crashTimer = 0.0f;
+bool isExploding = false;
+float explosionTimer = 0.0f;
 
 int cameraMode = 0;
 int lastInputTime = 0;
 
 int gameState = 0; // Start with menu
 int selectedMap = 0;
+int selectedPlane = 0; // 0 = DEFAULT, 1+ = loaded models
 
 const float BLOCK_SIZE = 150.0f;
 
@@ -58,12 +60,20 @@ float autopilotAlt = 0.0f;
 
 // Auto-Land
 bool autoLandOn    = false;
-int  autoLandPhase = 0;
-float autoLandTimer = 0.0f;
+float autoLandFailTimer = 0.0f;
+std::string autoLandFailReason = "";
 
 // Screen fade
 float screenFade = 0.0f;
 
 // Weather control (0=Dynamic, 1=Clear, 2=Cloudy, 3=Foggy)
 int weatherMode = 0;
+
+GLuint cloudTextureId = 0;
+
+// Model Adjustments
+float modelGlobalScale = 1.0f;
+float modelGlobalRotX = 0.0f;
+float modelGlobalRotY = 0.0f;
+float modelGlobalRotZ = 0.0f;
 

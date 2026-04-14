@@ -46,11 +46,6 @@ void keyDown(unsigned char key, int, int) {
         gearDeployed = !gearDeployed;
     }
 
-    if (key == '[') flaps -= 0.2f;
-    if (key == ']') flaps += 0.2f;
-
-    if (flaps < 0.0f) flaps = 0.0f;
-    if (flaps > 1.0f) flaps = 1.0f;
     if (throttle < 0.0f) throttle = 0.0f;
     if (throttle > 1.0f) throttle = 1.0f;
 
@@ -65,9 +60,6 @@ void keyDown(unsigned char key, int, int) {
         suspension       = 0.0f;
         wheelRotation    = 0.0f;
         engineFanRotation = 0.0f;
-        flaps    = 0.0f;
-        flapLift = 0.0f;
-        flapDrag = 0.0f;
 
         planeX = 0.0f;
         planeZ = 6200.0f;
@@ -90,8 +82,6 @@ void keyDown(unsigned char key, int, int) {
         autopilotOn  = false;
         autopilotAlt = 0.0f;
         autoLandOn    = false;
-        autoLandPhase = 0;
-        autoLandTimer = 0.0f;
         screenFade    = 0.0f;
         isPaused      = false;
     }
@@ -128,19 +118,28 @@ void keyDown(unsigned char key, int, int) {
         weatherMode = (weatherMode + 1) % 4;
     }
 
-    // L = Auto-Land cinematic (5s autopilot → fade to black → reset to runway)
+    // L = Auto-Land (only if low & slow enough; glide down to ground then brake)
 
     if (lowerKey == 'l' && !crashed && !isGrounded) {
-        autoLandOn = !autoLandOn;
-        if (autoLandOn) {
-            autoLandPhase = 0;
-            autoLandTimer = 5.0f;  // 5-second autopilot phase
+        float hGround = getVoxelHeight(planeX, planeZ);
+        float agl = planeY - hGround;
+
+        // Condition: Must be below 1000 height and under 400 speed
+        if (agl < 1000.0f && currentSpeed < 400.0f) {
+            autoLandOn    = true;
             autopilotOn   = false;
-            gearDeployed  = true;
+            gearDeployed  = true; // drop gear automatically
+            afterburnerOn = false;
         } else {
-            autoLandPhase = 0;
-            autoLandTimer = 0.0f;
-            screenFade    = 0.0f;
+            autoLandFailTimer = 3.0f; // display message for 3 seconds
+            
+            if (agl >= 1000.0f && currentSpeed >= 400.0f) {
+                autoLandFailReason = "TOO HIGH & TOO FAST";
+            } else if (agl >= 1000.0f) {
+                autoLandFailReason = "ALTITUDE TOO HIGH";
+            } else {
+                autoLandFailReason = "SPEED TOO FAST";
+            }
         }
     }
 }

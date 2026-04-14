@@ -9,7 +9,6 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-// ================= CLOUD SYSTEM =================
 namespace {
 
 float hash01(float x, float y, float seed) {
@@ -21,34 +20,137 @@ int floorToInt(float value) {
     return static_cast<int>(std::floor(value));
 }
 
+// Low-overhead Cellular (Worley) Noise for cauliflower textures
+float worley(float x, float y, float seed) {
+    float minDist = 1.0f;
+    int ix = (int)std::floor(x);
+    int iy = (int)std::floor(y);
+    for (int j = -1; j <= 1; j++) {
+        for (int i = -1; i <= 1; i++) {
+            float pX = (float)(ix + i);
+            float pY = (float)(iy + j);
+            float hX = hash01(pX, pY, seed);
+            float hY = hash01(pX, pY, seed + 1.23f);
+            float dx = (pX + hX) - x;
+            float dy = (pY + hY) - y;
+            float d = dx*dx + dy*dy;
+            if (d < minDist) minDist = d;
+        }
+    }
+    return std::sqrt(minDist);
+}
+
+void drawCloudPuff(float x, float y, float z, float radius, float shade, float alpha, float light) {
+    glPushMatrix();
+    glTranslatef(x, y, z);
+
+    // Billboarding: Extract the ModelView matrix and zero-out rotation
+    float modelView[16];
+    glGetFloatv(GL_MODELVIEW_MATRIX, modelView);
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 3; j++) {
+            if (i == j) modelView[i * 4 + j] = 1.0f;
+            else modelView[i * 4 + j] = 0.0f;
+        }
+    }
+    glLoadMatrixf(modelView);
+
+    // --- Atmospheric Blending (Fix "black" distant clouds) ---
+    float distSq = (x-planeX)*(x-planeX) + (y-planeY)*(y-planeY) + (z-planeZ)*(z-planeZ);
+    float d = std::sqrt(distSq);
+    
+    float skyR, skyG, skyB;
+    getSkyColor(skyR, skyG, skyB);
+    
+    // Blend toward sky color based on distance (start 10k, full sky 22k)
+    float blend = clampf((d - 10000.0f) / 12000.0f, 0.0f, 1.0f);
+    
+    float r = shade * light;
+    float g = shade * light;
+    float b = shade * light; // Neutral Greyish-White
+    
+    float finalR = mixf(r, skyR, blend);
+    float finalG = mixf(g, skyG, blend);
+    float finalB = mixf(b, skyB, blend);
+
+    // --- Final Alpha calculation (Distance-based opacity reduction) ---
+    // Aggressively reduce opacity for far away clouds to make them misty
+    float opacityScale = clampf(1.1f - d / 25000.0f, 0.0f, 1.0f);
+    float finalAlpha = alpha * opacityScale;
+
+    glColor4f(finalR, finalG, finalB, finalAlpha);
+
+    float hs = radius;
+    glBegin(GL_QUADS);
+    glTexCoord2f(0.0f, 0.0f); glVertex2f(-hs, -hs);
+    glTexCoord2f(1.0f, 0.0f); glVertex2f( hs, -hs);
+    glTexCoord2f(1.0f, 1.0f); glVertex2f( hs,  hs);
+    glTexCoord2f(0.0f, 1.0f); glVertex2f(-hs,  hs);
+    glEnd();
+
+    glPopMatrix();
+}
+
 void drawCloudCluster(float baseX, float baseY, float baseZ,
                       int clusterSize, float baseRadius,
                       float radiusJitter, float baseShade,
-                      float alpha, float seedBase)
+                      float alpha, float seedBase,
+                      float stretchX, float stretchY, float stretchZ)
 {
-    for (int puff = 0; puff < clusterSize; ++puff) {
+    glEnable(GL_TEXTURE_2D);
+    glBindTexture(GL_TEXTURE_2D, cloudTextureId);
+    glDepthMask(GL_FALSE);
+
+    // Disable legacy fog during clouds to prevent "black smudges" mismatch
+    glDisable(GL_FOG);
+
+    float sx, sy, sz;
+    getSunDirection(sx, sy, sz);
+    // STICK TO GREYISH-WHITE: Lock light floor much higher (0.85 instead of 0.45)
+    float light = clampf(0.70f + 0.30f * sy, 0.85f, 1.0f);
+
+    // High-density puffs for volumetric look
+    int density = clusterSize * 6; // Standard clusterSize 4 becomes 24 puffs
+    
+    for (int puff = 0; puff < density; ++puff) {
         float i = (float)puff;
 
-        float offsetX = (hash01(seedBase, i, 1.0f) - 0.5f) * 880.0f;
-        float offsetY = (hash01(seedBase, i, 2.0f) - 0.5f) * 180.0f;
-        float offsetZ = (hash01(seedBase, i, 3.0f) - 0.5f) * 740.0f;
+        // Gaussian-like distribution for a rounded "puffy" cloud body
+        // --- Position generation (FIXED CLEAN VERSION) ---
 
-        float radius = baseRadius + hash01(seedBase, i, 4.0f) * radiusJitter;
-        float shade  = clampf(baseShade + (hash01(seedBase, i, 5.0f) - 0.5f) * 0.1f, 0.35f, 1.0f);
+float phi = hash01(seedBase, i, 1.0f) * 2.0f * (float)M_PI;
+float cosTheta = 2.0f * hash01(seedBase, i, 2.0f) - 1.0f;
+float sinTheta = std::sqrt(1.0f - cosTheta * cosTheta);
 
-        glPushMatrix();
-        glTranslatef(baseX + offsetX, baseY + offsetY, baseZ + offsetZ);
+// Better distribution
+float r = std::pow(hash01(seedBase, i, 3.0f), 1.5f);
 
-        float sx, sy, sz;
-        getSunDirection(sx, sy, sz);
-        // clamp: night has sy<0, light doesn't go below 0.25 for moon ambient
-        float light = clampf(0.35f + 0.55f * sy, 0.25f, 1.0f);
+// ✅ Declare ALL offsets FIRST (randomized stretch per cluster)
+float offsetX = r * sinTheta * std::cos(phi) * 600.0f * stretchX;
+float offsetZ = r * sinTheta * std::sin(phi) * 600.0f * stretchZ;
+float offsetY = r * cosTheta * 100.0f * stretchY; // Reduced vertical depth (150 -> 100)
 
-        // Use standard alpha blend — always restore to this before calling
-        glColor4f(shade * light, shade * light, (shade + 0.05f) * light, alpha);
-        glutSolidSphere(radius, 12, 12);
-        glPopMatrix();
+// ✅ THEN modify offsetY for flatter bases
+if (offsetY < 0.0f) offsetY *= 0.3f; // More aggressive base flattening
+
+        // --- Realistic Lighting Gradient (Greyish White LOCK) ---
+        float heightFactor = (offsetY + 150.0f) / 300.0f; 
+        float verticalShade = mixf(0.98f, 1.02f, heightFactor); // Extremely bright range
+
+        // Subtle sun-facing boost
+        float sunFactor = 0.92f + 0.08f * sy;
+        verticalShade *= sunFactor;
+        float puffShade = baseShade * verticalShade;
+
+        float radius = (baseRadius * 0.85f) + hash01(seedBase, i, 4.0f) * radiusJitter;
+        // Higher alpha for a more "solid" gaseous look
+        float puffAlpha = alpha * 0.65f * (1.1f - r * r * 0.9f);
+
+        drawCloudPuff(baseX + offsetX, baseY + offsetY, baseZ + offsetZ, radius, puffShade, puffAlpha, light);
     }
+
+    glDepthMask(GL_TRUE);
+    glDisable(GL_TEXTURE_2D);
 }
 
 struct CloudLayerConfig {
@@ -60,20 +162,20 @@ struct CloudLayerConfig {
     float shade, alpha;
 };
 
-// Day clouds
+// Day clouds (Scattered Puffy Cumulus)
 CloudLayerConfig defaultDayClouds = {
-    2600.0f, 3, 16.0f, 7.0f,
-    2500.0f, 900.0f,
-    280.0f, 85.0f,
-    0.98f, 0.88f
+    10000.0f, 3, 16.0f, 7.0f,   
+    3800.0f, 1500.0f,           // Higher and thinner altitude band (from 3800 up)
+    650.0f, 300.0f,              // Moderated size (850 -> 650)
+    1.0f, 0.95f                  
 };
 
 // Night clouds: very sparse so stars show through
 CloudLayerConfig defaultNightClouds = {
-    4200.0f, 2, 8.0f, 3.5f,
-    2450.0f, 700.0f,
-    175.0f, 55.0f,
-    0.60f, 0.50f
+    8000.0f, 2, 8.0f, 3.5f,
+    2600.0f, 1000.0f,
+    220.0f, 80.0f,
+    0.50f, 0.45f
 };
 
 void drawChunkedCloudLayer(const WeatherProfile& weather, const CloudLayerConfig& config)
@@ -93,19 +195,60 @@ void drawChunkedCloudLayer(const WeatherProfile& weather, const CloudLayerConfig
 
             float baseX = x * config.chunkSize + driftX;
             float baseZ = z * config.chunkSize + driftZ;
-            float baseY = config.minHeight + hash01(x, z, 3.0f) * config.heightRange;
+            
+            // Randomize height within a much wider range for natural sky depth
+            float heightOffset = hash01(x, z, 3.0f) * config.heightRange;
+            float baseY = config.minHeight + heightOffset;
 
-            // Limit cluster count so night sky doesn't get too busy
-            int maxClusters = (config.shade < 0.8f) ? 1 : 2; // night: max 1
-            int clusters     = 1 + (int)(weather.cloudiness * maxClusters);
+            float heightRatio = config.heightRange > 0.0f ? (heightOffset / config.heightRange) : 0.0f;
+
+            // Randomize clusters per chunk
+            int clusters = 1 + (int)(weather.cloudiness * 3.0f);
+            clusters += (int)(hash01(x, z, 9.0f) * 3.0f); // Variable density
+            // Increase density rapidly and exponentially with altitude
+            clusters += (int)(std::pow(heightRatio, 2.0f) * 45.0f); 
 
             for (int c = 0; c < clusters; ++c) {
-                drawCloudCluster(baseX, baseY, baseZ,
-                                 4, config.baseRadius,
-                                 config.radiusJitter,
+                float cSeed = (float)c * 17.3f;
+                // Randomize cluster size and radius
+                float sizeScale = 0.6f + hash01(x, z, cSeed + 1.1f) * 1.2f;
+                float clusterRadius = config.baseRadius * sizeScale;
+                
+                // Elliptical shapes (Stronger width-to-height ratio)
+                float shapeType = hash01(x, z, cSeed + 9.9f);
+                float sX = 1.0f, sY = 1.0f, sZ = 1.0f;
+
+                if (shapeType < 0.85f) { // Elliptical (Very Wide and Very Flat)
+                    sX = 1.7f + hash01(x, z, cSeed + 6.1f) * 1.0f;
+                    sZ = 1.7f + hash01(x, z, cSeed + 8.2f) * 1.0f;
+                    sY = 0.15f + hash01(x, z, cSeed + 7.3f) * 0.2f; // Much thinner (0.3 -> 0.15)
+                } else { // Spherical
+                    sX = 1.0f; sY = 1.0f; sZ = 1.0f;
+                }
+
+                // Cloud width and length increase with altitude
+                float altitudeExpansion = 1.0f + (heightRatio * 1.8f);
+                sX *= altitudeExpansion;
+                sZ *= altitudeExpansion;
+
+                // Stability: Horizon Fading (Aggressive Anti-popping)
+                float distToChunk = std::sqrt((baseX-planeX)*(baseX-planeX) + (baseZ-planeZ)*(baseZ-planeZ));
+                float maxRad = config.chunkSize * (float)config.chunkRadius;
+                // Fade starts at 50% distance and reaches 0 at maxRad
+                float fadeAlpha = config.alpha * clampf((maxRad - distToChunk) / (config.chunkSize * 1.5f), 0.0f, 1.0f);
+
+                // Offset individual clusters within the chunk
+                float offX = (hash01(x, z, cSeed + 2.2f) - 0.5f) * config.chunkSize * 0.8f;
+                float offZ = (hash01(x, z, cSeed + 3.3f) - 0.5f) * config.chunkSize * 0.8f;
+                float offY = (hash01(x, z, cSeed + 4.4f) - 0.5f) * 400.0f; // Varied heights within the cluster (600 -> 400)
+
+                drawCloudCluster(baseX + offX, baseY + offY, baseZ + offZ,
+                                 4, clusterRadius,
+                                 config.radiusJitter * sizeScale,
                                  config.shade,
-                                 config.alpha,
-                                 (float)c * 10.0f);
+                                 fadeAlpha,
+                                 hash01(x, z, cSeed + 5.5f),
+                                 sX, sY, sZ);
             }
         }
     }
@@ -247,6 +390,55 @@ void drawStarField(float nightBlend) {
 }
 
 } // namespace
+
+void initSky() {
+    const int texSize = 256; // Increased resolution
+    unsigned char data[texSize * texSize * 4];
+
+    for (int y = 0; y < texSize; y++) {
+        for (int x = 0; x < texSize; x++) {
+            float u = (x / (float)(texSize-1)) - 0.5f;
+            float v = (y / (float)(texSize-1)) - 0.5f;
+            float dist = std::sqrt(u * u + v * v) * 2.0f; // 0..1
+            
+            // --- 1. Base Density ---
+            float baseAlpha = 1.0f - std::pow(clampf(dist, 0.0f, 1.0f), 4.5f);
+            
+            // --- 2. Cellular Cauliflower Texture ---
+            float nx = x * 8.0f / (float)texSize;
+            float ny = y * 8.0f / (float)texSize;
+            
+            // Multi-layered Worley noise for clumping
+            float c1 = 1.0f - worley(nx, ny, 10.0f);
+            float c2 = 1.0f - worley(nx*2.2f, ny*2.2f, 20.0f);
+            float w = (c1 * 0.7f + c2 * 0.3f);
+            
+            // High contrast clumping
+            w = std::pow(w, 1.8f) * 1.4f;
+
+            // --- 3. Final Composite ---
+            float alpha = baseAlpha * w;
+            
+            // Sharpen the final silhouette
+            alpha = clampf((alpha - 0.15f) * 1.8f, 0.0f, 1.0f);
+
+            int idx = (y * texSize + x) * 4;
+            data[idx + 0] = 255;
+            data[idx + 1] = 255;
+            data[idx + 2] = 255;
+            data[idx + 3] = (unsigned char)(alpha * 255);
+        }
+    }
+
+    glGenTextures(1, &cloudTextureId);
+    glBindTexture(GL_TEXTURE_2D, cloudTextureId);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, texSize, texSize, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+    glBindTexture(GL_TEXTURE_2D, 0);
+}
 
 // ================= WEATHER (gentle time-varying, no storm) =================
 WeatherProfile getWeatherProfile()

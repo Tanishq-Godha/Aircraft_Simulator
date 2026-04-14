@@ -12,6 +12,8 @@
 
 namespace {
 
+float getMaxSceneHeightUnderPlane(float px, float pz, float pyaw);
+
 const float kSimulationStep = 1.0f / 120.0f;
 const float kMaxFrameDt     = 0.05f;
 const float kMaxAirSpeed    = 920.0f;
@@ -27,6 +29,7 @@ float approach(float current, float target, float rate, float dt) {
 }
 
 float getGearClearance() {
+    if (isBellyLanding) return 2.0f;
     return lerp(2.0f, 12.0f, gearAnimation);
 }
 
@@ -39,9 +42,8 @@ bool isLandingAligned() {
 bool isSafeLanding(float sinkRate) {
     return gearAnimation > 0.97f &&
            isLandingAligned() &&
-           currentSpeed < 285.0f &&
-           sinkRate < 90.0f &&
-           (flaps > 0.25f || currentSpeed < 200.0f);
+           currentSpeed < 240.0f &&
+           sinkRate < 90.0f;
 }
 
 bool isHardLanding(float sinkRate) {
@@ -49,6 +51,13 @@ bool isHardLanding(float sinkRate) {
            isLandingAligned() &&
            currentSpeed < 325.0f &&
            sinkRate < 130.0f;
+}
+
+bool isBellyLandingCheck(float sinkRate) {
+    return gearAnimation < 0.05f &&
+           isLandingAligned() &&
+           currentSpeed <= 280.0f &&
+           sinkRate < 90.0f;
 }
 
 // ─── Afterburner ─────────────────────────────────────────────────────────────
@@ -127,7 +136,8 @@ void updateTaxiPhysics(float dt) {
 
     // Faster acceleration on ground: rate 2.8→5.0
     float targetSpeed = throttle * kMaxTaxiSpeed * surfaceFriction;
-    currentSpeed = approach(currentSpeed, targetSpeed, 5.0f, dt);
+    float speedRate = autoLandOn ? 0.3f : 5.0f; // Smooth braking for autoland
+    currentSpeed = approach(currentSpeed, targetSpeed, speedRate, dt);
     currentSpeed -= brakeDrag * dt;
     currentSpeed  = clampf(currentSpeed, 0.0f, kMaxTaxiSpeed);
 
@@ -141,10 +151,10 @@ void updateTaxiPhysics(float dt) {
     // ── Smooth liftoff ────────────────────────────────────────────────────
     // Lower rotation speed 155 (vs. old 195) = shorter takeoff roll.
     // Removed instant planeY jump; vY ramps via approach() = smooth liftoff.
-    float rotateSpeed = 155.0f - (flaps * 40.0f);
+    float rotateSpeed = 155.0f;
     if (gearAnimation > 0.97f && currentSpeed > rotateSpeed && pitch > 6.0f) {
         isGrounded = false;
-        vY = approach(vY, 55.0f + (flaps * 20.0f), 10.0f, dt);
+        vY = approach(vY, 65.0f, 10.0f, dt);
     }
 }
 
@@ -184,18 +194,8 @@ void updateAirPhysics(float dt, float agl) {
             autopilotOn = false;
     }
 
-    // ── autoLandOn autopilot: level flight for 5-second cinematic phase ──
-    if (autoLandOn && autoLandPhase == 0) {
-        float altErr  = autopilotAlt - planeY;
-        pitch = approach(pitch, clampf(altErr * 0.04f, -8.0f, 12.0f), 2.5f, dt);
-        roll  = approach(roll,  0.0f, 1.5f, dt);
-        throttle = approach(throttle, 0.60f, 1.0f, dt);
-    }
-
-    pitch = clampf(pitch, -22.0f, 28.0f);
-
-    flapLift = flaps * 190.0f;
-    flapDrag = flaps * 115.0f;
+    // Allow steeper dives for full stall simulation, but clamp up-pitch
+    pitch = clampf(pitch, -85.0f, 40.0f);
 
     float pRad = degToRad(pitch);
     float yRad = degToRad(yaw);
@@ -207,124 +207,92 @@ void updateAirPhysics(float dt, float agl) {
     float gearDrag = gearAnimation * 42.0f;
     float abBonus  = afterburnerIntensity * 120.0f;
 
-    float targetSpeed = (throttle * kMaxAirSpeed) + abBonus
-                      - (fY * 150.0f) - flapDrag - gearDrag;
+    // Gravity massively dictates speed when the engine is low/off (like a real glider)
+    float gravitySpeedImpact = -fY * 600.0f;
+    
+    // Terminal velocity naturally limits how fast the plane can fall/dive
+    float targetSpeed = (throttle * kMaxAirSpeed) + abBonus + gravitySpeedImpact - gearDrag;
 
-    currentSpeed = approach(currentSpeed, targetSpeed, 4.4f, dt);
-    currentSpeed = clampf(currentSpeed, 80.0f, kMaxAirSpeed + 120.0f);
+    // Gravity accelerates you down fast, but air friction decelerates you slowly
+    float accelRate = (targetSpeed > currentSpeed) ? 2.5f : 0.45f;
+    currentSpeed = approach(currentSpeed, targetSpeed, accelRate, dt);
+    currentSpeed = clampf(currentSpeed, 10.0f, kMaxAirSpeed + 250.0f); // Allow speed leaps in a steep dive
 
-    float stallSpeed = 145.0f - (flaps * 30.0f) + (gearAnimation * 10.0f);
+    float stallSpeed = 160.0f + (gearAnimation * 10.0f);
     isStalling = currentSpeed < stallSpeed && pitch > 10.0f;
 
-    // Calculate lift-based vertical velocity from pitch angle
+    // True aerodynamic lift vs gravity
     vX = fX * currentSpeed;
-    vY = fY * currentSpeed + (flapLift * dt);
     vZ = fZ * currentSpeed;
 
-    // Apply gravity (pulling plane down when speed is low)
-    vY -= kGravity * dt;
+    // Base intended vertical speed from the nose vector
+    float target_vY = fY * currentSpeed;
 
-    // At high speeds, lift partially counteracts gravity
-    float liftBonus = std::max(0.0f, (currentSpeed - 150.0f) * 0.15f);
-    vY += liftBonus * dt;
+    // Approach the nose vector's velocity (simulates some inertia)
+    vY = approach(vY, target_vY, 3.5f, dt);
+
+    // Lift generation requires speed and correct pitch (simplified)
+    float liftFactor = clampf((currentSpeed - stallSpeed + 50.0f) / 150.0f, 0.0f, 1.0f); 
+    // High bank angles (roll) bleed off vertical lift
+    float rollFactor = std::cos(degToRad(roll));
+    float upLift = kGravity * liftFactor * rollFactor;
+
+    // Apply net gravity force (if flying fast and level, this is 0)
+    vY -= (kGravity - upLift) * dt;
 
     if (isStalling) {
-        vY -= 90.0f * dt;
-        roll = approach(roll, 0.0f, 1.2f, dt);
-        currentSpeed = approach(currentSpeed, stallSpeed - 10.0f, 2.0f, dt);
+        // Drop more aggressively if the wings fully stall from high pitch
+        vY -= kGravity * 1.5f * dt;
+        if (!autoLandOn) {
+            pitch = approach(pitch, -15.0f, 1.2f, dt); // Nose drops down naturally
+        }
+    } else if (currentSpeed < stallSpeed && !autoLandOn) {
+        // If simply slow and not auto-landing, gentle nose drop
+        pitch = approach(pitch, -5.0f, 1.0f, dt);
     }
 
-    if (gearAnimation > 0.95f && flaps > 0.25f &&
-        agl < 250.0f && !keys['s'] && !apActive)
-        pitch = approach(pitch, 8.0f, 2.4f, dt);
-
-    if (flaps > 0.45f && agl < 2500.0f)
-        vY += (-45.0f - vY) * 0.02f;
+    // Turbulence / subtle sway
+    vX += std::sin(gameTime * 0.8f) * 1.5f;
+    vZ += std::cos(gameTime * 0.9f) * 1.5f;
 
     if (gearAnimation > 0.01f)
         wheelRotation += currentSpeed * dt * 0.35f;
 }
 
-// ─── Inline reset (same as pressing P) ───────────────────────────────────────
-void doFullReset() {
-    crashed      = false;
-    isGrounded   = true;
-    gearDeployed = true;
-    gearInTransition = false;
-    gearAnimation    = 1.0f;
-    gearDoorAnim     = 0.0f;
-    suspension       = 0.0f;
-    wheelRotation    = 0.0f;
-    engineFanRotation = 0.0f;
-    flaps    = 0.0f;
-    flapLift = 0.0f;
-    flapDrag = 0.0f;
-
-    planeX = RWY_X;
-    planeZ = RWY_Z;
-    planeY = getVoxelHeight(RWY_X, RWY_Z) + 12.0f;
-
-    currentSpeed = 0.0f;
-    throttle = 0.0f;
-    pitch = 0.0f; roll = 0.0f; yaw = 0.0f;
-    vX = 0.0f; vY = 0.0f; vZ = 0.0f;
-    isStalling = false;
-
-    afterburnerOn        = false;
-    afterburnerIntensity = 0.0f;
-    fuel       = 1.0f;
-    engineOut  = false;
-    autopilotOn = false;
-    autopilotAlt = 0.0f;
-}
-
-// ─── Auto-Land cinematic ─────────────────────────────────────────────────────
-// Phase 0 : 5-second level autopilot with HUD countdown
-// Phase 1 : 1-second fade-to-black
-// Phase 2 : reset plane to runway + 1-second fade back (black→clear)
+// ─── Auto-Land rapid deceleration ──────────────────────────────────────────────
 void updateAutoLand(float dt) {
     if (!autoLandOn) return;
 
-    autoLandTimer -= dt;
+    if (!isGrounded) {
+        float agl = planeY - getMaxSceneHeightUnderPlane(planeX, planeZ, yaw);
+        
+        float stallSpeed = 160.0f + (gearAnimation * 10.0f);
+        float approachSpeed = stallSpeed + 25.0f; // Safe margin above stall
 
-    if (autoLandPhase == 0) {
-        // Capture altitude on first tick
-        static bool capturedAlt = false;
-        if (!capturedAlt) {
-            autopilotAlt = planeY;
-            capturedAlt  = true;
+        roll = approach(roll, 0.0f, 1.5f, dt);
+        
+        if (agl > 40.0f) {
+            // Glide slope: point nose slightly down
+            pitch = approach(pitch, -4.0f, 1.0f, dt);
+            
+            // Autothrottle: actively manage throttle to maintain approach speed 
+            if (currentSpeed < approachSpeed) {
+                throttle = approach(throttle, 0.5f, 2.0f, dt);
+            } else {
+                throttle = approach(throttle, 0.0f, 2.0f, dt);
+            }
+        } else {
+            // Flare: near the ground, pitch up and kill throttle to gently stall onto runway
+            pitch = approach(pitch, 6.0f, 1.5f, dt);
+            throttle = approach(throttle, 0.0f, 2.0f, dt);
         }
-        // autopilot is handled in updateAirPhysics while autoLandPhase==0
-
-        if (autoLandTimer <= 0.0f) {
-            autoLandPhase = 1;
-            autoLandTimer = 1.0f; // 1 second fade-to-black
-            capturedAlt   = false;
-        }
-    }
-    else if (autoLandPhase == 1) {
-        // Fade to black: screenFade goes 0 → 1
-        screenFade = 1.0f - (autoLandTimer / 1.0f);
-        screenFade = clampf(screenFade, 0.0f, 1.0f);
-
-        if (autoLandTimer <= 0.0f) {
-            // At peak black: do the full reset
-            doFullReset();
-            autoLandPhase = 2;
-            autoLandTimer = 1.2f; // 1.2 seconds fade back from black
-            screenFade = 1.0f;    // ensure fully black
-        }
-    }
-    else if (autoLandPhase == 2) {
-        // Fade from black: screenFade goes 1 → 0
-        screenFade = autoLandTimer / 1.2f;
-        screenFade = clampf(screenFade, 0.0f, 1.0f);
-
-        if (autoLandTimer <= 0.0f) {
-            screenFade    = 0.0f;
-            autoLandOn    = false;
-            autoLandPhase = 0;
-            autoLandTimer = 0.0f;
+    } else {
+        // On the ground: brake to a stop smoothly
+        pitch = approach(pitch, 0.0f, 2.0f, dt);
+        throttle = 0.0f;
+        if (currentSpeed <= 1.0f) {
+            currentSpeed = 0.0f;
+            autoLandOn = false; // Deceleration complete
         }
     }
 }
@@ -364,15 +332,16 @@ float getMaxSceneHeightUnderPlane(float px, float pz, float pyaw) {
 void simulatePhysics(float dt) {
     if (crashed) return;
 
-    // While auto-land is in phases 1 or 2 (cinematic), skip physics
-    if (autoLandOn && autoLandPhase >= 1) return;
-
     updateAfterburner(dt);
     updateFuel(dt);
     updateThrottle(dt);
 
     if (isGrounded) gearDeployed = true;
     updateLandingGear(dt);
+
+    if (autoLandFailTimer > 0.0f) {
+        autoLandFailTimer -= dt;
+    }
 
     float currentGround = getMaxSceneHeightUnderPlane(planeX, planeZ, yaw);
     float agl = planeY - currentGround;
@@ -393,16 +362,16 @@ void simulatePhysics(float dt) {
     float newGround = getMaxSceneHeightUnderPlane(planeX, planeZ, yaw);
     float clearance = getGearClearance();
 
-    if (!isGrounded && newGround > planeY) {
+if (!isExploding && !crashed && !isGrounded && newGround > planeY) {
         if (!autoLandOn) {
-            crashed = true;
-            currentSpeed = 0.0f;
-            vX = vY = vZ = 0.0f;
+            isExploding = true;
+            explosionTimer = 0.0f;
+            currentSpeed *= 0.5f;
         }
         return;
     }
 
-    if (!isGrounded && planeY <= newGround + clearance) {
+    if (!isExploding && !crashed && !isGrounded && planeY <= newGround + clearance) {
         float sinkRate = -vY;
         if (sinkRate < 0.0f) sinkRate = 0.0f;
 
@@ -411,6 +380,7 @@ void simulatePhysics(float dt) {
 
         bool safeTouchdown = isSafeLanding(sinkRate) && onValidRunway;
         bool hardTouchdown = isHardLanding(sinkRate) && onValidRunway;
+        bool bellyTouchdown = isBellyLandingCheck(sinkRate) && onValidRunway;
 
         if (safeTouchdown || hardTouchdown) {
             isGrounded = true;
@@ -421,11 +391,17 @@ void simulatePhysics(float dt) {
                        ? clampf(sinkRate * 0.006f,  0.18f, 0.60f)
                        : clampf(sinkRate * 0.0045f, 0.08f, 0.35f);
             currentSpeed *= hardTouchdown ? 0.88f : 0.94f;
+        } else if (bellyTouchdown) {
+            isGrounded = true;
+            isBellyLanding = true;
+            planeY = newGround + clearance;
+            vY = 0.0f;
+            currentSpeed *= 0.70f;
         } else {
-            crashed = true;
+            isExploding = true;
+            explosionTimer = 0.0f;
             planeY  = newGround + clearance;
-            currentSpeed = 0.0f;
-            vX = vY = vZ = 0.0f;
+            currentSpeed *= 0.5f;
         }
     }
 
@@ -436,6 +412,27 @@ void simulatePhysics(float dt) {
         } else {
             planeY     = targetPlaneY;
             isStalling = false;
+        }
+        
+        if (isBellyLanding) {
+            targetPlaneY += 0.5f;
+            currentSpeed -= 150.0f * dt; // Heavy friction
+            if (currentSpeed <= 5.0f) {
+                currentSpeed = 0.0f;
+                isExploding = true;
+                explosionTimer = 0.0f;
+            }
+        }
+    }
+
+    if (isExploding) {
+        explosionTimer += dt;
+        currentSpeed = approach(currentSpeed, 0.0f, 150.0f, dt);
+        if (explosionTimer > 0.4f) {
+            crashed = true;
+            isExploding = false;
+            currentSpeed = 0.0f;
+            vX = vY = vZ = 0.0f;
         }
     }
 

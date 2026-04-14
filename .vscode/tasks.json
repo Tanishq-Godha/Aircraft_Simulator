@@ -1,0 +1,11 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "make",
+			"type": "shell",
+			"command": "C:\\msys64\\msys2_shell.cmd -mingw64 -defterm -no-start -c \"cd '/c/Users/Tanishq Godha/Workspaces/Graphics Lab/Graphics Project/curr' && make\"",
+			"isBackground": false
+		}
+	]
+}

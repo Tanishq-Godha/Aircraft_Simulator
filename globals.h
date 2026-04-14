@@ -1,6 +1,7 @@
 #ifndef GLOBALS_H
 #define GLOBALS_H
 
+#include <string>
 #include <GL/glut.h>
 #include <GL/glu.h>
 
@@ -29,18 +30,20 @@ extern float suspension;
 extern float wheelRotation;
 extern float engineFanRotation;
 
-// Flaps
-extern float flaps;
-extern float flapLift;
-extern float flapDrag;
+// Crash Effects
+extern bool isBellyLanding;
+extern float crashTimer;
+extern bool isExploding;
+extern float explosionTimer;
 
 // Camera
 extern int cameraMode;
 extern int lastInputTime;
 
 // Game state
-extern int gameState; // 0 = menu, 1 = game, 2 = controls, 3 = map select
+extern int gameState; // 0 = menu, 1 = game, 2 = controls, 3 = map select, 4 = plane select
 extern int selectedMap; // 0 = default terrain, 1 = city map
+extern int selectedPlane; // 0 = DEFAULT, 1+ = loaded models from planes/ folder
 extern bool isPaused;
 
 // Terrain
@@ -67,14 +70,22 @@ extern float autopilotAlt; // target altitude when AP engaged
 
 // Auto-Land (L key)
 extern bool autoLandOn;
-extern int  autoLandPhase; // 0=autopilot countdown, 1=fade-to-black, 2=reset+fade-in
-extern float autoLandTimer; // seconds remaining in current phase
+extern float autoLandFailTimer;
+extern std::string autoLandFailReason;
 
 // Screen fade (0=normal, 1=full black) — used for landing cinematic
 extern float screenFade;
 
 // Weather control (0=Dynamic, 1=Clear, 2=Cloudy, 3=Foggy)
 extern int weatherMode;
+
+extern GLuint cloudTextureId;
+
+// Model Adjustments
+extern float modelGlobalScale;
+extern float modelGlobalRotX;
+extern float modelGlobalRotY;
+extern float modelGlobalRotZ;
 
 #endif
 

@@ -2,6 +2,8 @@
 #include "globals.h"
 #include "atmosphere.h"
 #include "terrain.h"
+#include "model_loader.h"
+#include "shader_loader.h"
 #include <GL/glut.h>
 #include <GL/glu.h>
 #include <math.h>
@@ -12,6 +14,10 @@
 #endif
 
 extern GLUquadric* quadric;
+
+// Global loaded model
+LoadedModel g_loadedJetModel = {};
+bool g_useLoadedModel = false;
 
 namespace {
 
@@ -86,7 +92,7 @@ void updateControlSurfaceAnimation(float& flapAngle,
     }
     state.lastTickMs = nowMs;
 
-    float targetFlap = flaps * 28.0f;
+    float targetFlap = 0.0f;
     float targetAileron = clampf((-roll * 0.32f) +
                                  (keys['a'] ? 8.0f : 0.0f) -
                                  (keys['d'] ? 8.0f : 0.0f),
@@ -900,3 +906,114 @@ void drawDetailedJet() {
 
     glPopMatrix();
 }
+
+// Load a plane model from the planes/ folder
+bool loadSelectedPlaneModel(const std::string& planeFilename) {
+    std::string fullPath = "planes/" + planeFilename;
+    
+    printf("Loading plane model: %s\n", fullPath.c_str());
+    fflush(stdout);
+    
+    if (g_useLoadedModel) {
+        printf("Unloading previous model...\n");
+        fflush(stdout);
+        unloadJetModel();  // Unload previous model
+    }
+
+    LoadedModel newModel;
+    newModel.scene = nullptr;
+    
+    if (!loadModelFromFile(fullPath, newModel)) {
+        printf("ERROR: Failed to load plane model: %s\n", fullPath.c_str());
+        fflush(stdout);
+        g_useLoadedModel = false;
+        return false;
+    }
+
+    g_loadedJetModel = newModel;
+    g_useLoadedModel = true;
+    printf("Plane model loaded successfully!\n");
+    fflush(stdout);
+    return true;
+}
+
+// Draw the jet using either loaded model or default procedural jet
+void drawExplosionAndSparks() {
+    glPushMatrix();
+    glTranslatef(planeX, planeY, planeZ);
+
+    if (isExploding) {
+        float size = explosionTimer * 200.0f; // Rapidly expanding sphere
+        glColor4f(1.0f, 0.5f, 0.0f, 1.0f - (explosionTimer / 0.4f)); // Fades out
+        glutSolidSphere(size, 20, 20);
+        
+        // Inner core
+        glColor4f(1.0f, 1.0f, 0.5f, 1.0f - (explosionTimer / 0.4f));
+        glutSolidSphere(size * 0.7f, 15, 15);
+        
+        // Debris / sparks
+        for (int i = 0; i < 30; i++) {
+            glPushMatrix();
+            float rx = ((float)rand() / RAND_MAX - 0.5f) * size * 1.5f;
+            float ry = ((float)rand() / RAND_MAX - 0.2f) * size * 1.5f; // Mostly upwards
+            float rz = ((float)rand() / RAND_MAX - 0.5f) * size * 1.5f;
+            glTranslatef(rx, ry, rz);
+            glColor4f(1.0f, 0.8f, 0.2f, 1.0f);
+            glutSolidCube(1.0f);
+            glPopMatrix();
+        }
+    } else if (isBellyLanding && currentSpeed > 10.0f) {
+        // Sparks for belly slide
+        glRotatef(-yaw, 0.0f, 1.0f, 0.0f);
+        float clearanceOffset = 2.0f; // Fixed belly clearance in physics
+        glTranslatef(0.0f, -clearanceOffset, 0.0f); // Under the belly
+        for (int i = 0; i < 15; i++) {
+            glPushMatrix();
+            // Sparks fly backwards and randomly sideways/up
+            float dx = ((float)rand() / RAND_MAX - 0.5f) * 4.0f;
+            float dy = ((float)rand() / RAND_MAX) * 2.0f;
+            float dz = ((float)rand() / RAND_MAX) * 8.0f + 2.0f; // Behind the plane
+            glTranslatef(dx, dy, dz);
+            glColor4f(1.0f, 0.8f + ((float)rand()/RAND_MAX)*0.2f, 0.0f, 1.0f); // Yellowish-orange
+            glutSolidCube(0.5f);
+            glPopMatrix();
+        }
+    }
+    
+    glPopMatrix();
+}
+
+void drawJet() {
+    if (g_useLoadedModel && g_loadedJetModel.scene) {
+        glPushMatrix();
+        glTranslatef(planeX, planeY, planeZ);
+        glRotatef(-yaw, 0.0f, 1.0f, 0.0f);
+        glRotatef(pitch, 1.0f, 0.0f, 0.0f);
+        glRotatef(-roll, 0.0f, 0.0f, 1.0f);
+        
+        // Apply user-defined adjustments
+        glScalef(modelGlobalScale, modelGlobalScale, modelGlobalScale);
+        glRotatef(modelGlobalRotX, 1.0f, 0.0f, 0.0f);
+        glRotatef(modelGlobalRotY, 0.0f, 1.0f, 0.0f);
+        glRotatef(modelGlobalRotZ, 0.0f, 0.0f, 1.0f);
+        
+        // Disable shader to use fixed-function pipeline for model rendering
+        glUseProgram(0);
+        drawLoadedModel(g_loadedJetModel);
+        // Shader will be re-enabled by display() for next frame
+        
+        glPopMatrix();
+    } else {
+        // Fall back to default procedural jet
+        drawDetailedJet();
+    }
+}
+
+// Unload the model and free resources
+void unloadJetModel() {
+    if (g_loadedJetModel.scene) {
+        unloadModel(g_loadedJetModel);
+        g_useLoadedModel = false;
+    }
+}
+

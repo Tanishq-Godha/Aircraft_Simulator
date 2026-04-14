@@ -136,15 +136,31 @@ namespace {
 
 bool ShadowSystem::init(int size) {
     shadowSize = size;
-    if (!initShaderExtensions()) return false;
+    std::cout << "ShadowSystem: Initializing shader extensions..." << std::endl;
+    if (!initShaderExtensions()) {
+        std::cout << "ShadowSystem: FAILED to initialize shader extensions!" << std::endl;
+        return false;
+    }
+    std::cout << "ShadowSystem: Shader extensions initialized." << std::endl;
     
+    std::cout << "ShadowSystem: Loading main shader..." << std::endl;
     mainShader = loadShaders("shaders/main_shaded.vert", "shaders/main_shaded.frag");
+    if (!mainShader) {
+        std::cout << "ShadowSystem: FAILED to load main shader!" << std::endl;
+        return false;
+    }
+    std::cout << "ShadowSystem: Main shader loaded (ID: " << mainShader << ")." << std::endl;
     
     const char* emptyFrag = "#version 120\nvoid main() {}";
+    std::cout << "ShadowSystem: Loading depth shader..." << std::endl;
     depthShader = loadShadersFromSource("#version 120\nvoid main() { gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex; }", emptyFrag);
+    if (!depthShader) {
+        std::cout << "ShadowSystem: FAILED to load depth shader!" << std::endl;
+        return false;
+    }
+    std::cout << "ShadowSystem: Depth shader loaded (ID: " << depthShader << ")." << std::endl;
 
-    if (!depthShader || !mainShader) return false;
-
+    std::cout << "ShadowSystem: Setting up framebuffer..." << std::endl;
     glGenFramebuffers(1, &shadowFBO);
     glBindFramebuffer(GL_FRAMEBUFFER, shadowFBO);
     

@@ -103,7 +103,8 @@ void drawHUD() {
 
     // State centered
     std::string flightState = "STATE: ";
-    if (crashed)    flightState += "CRASHED";
+    if (crashed || isExploding)    flightState += "CRASHED";
+    else if (isBellyLanding) flightState += "BELLY SLIDE";
     else if (isGrounded) flightState += "ROLLING";
     else            flightState += "AIRBORNE";
     renderText(cx - 70, screenH - 30, GLUT_BITMAP_HELVETICA_18, flightState);
@@ -190,23 +191,17 @@ void drawHUD() {
     }
 
     if (autoLandOn) {
-        glColor3f(0.3f, 0.85f, 1.0f);
-        if (autoLandPhase == 0) {
-            char alBuf[48];
-            int secsLeft = (int)std::ceil(autoLandTimer);
-            std::snprintf(alBuf, sizeof(alBuf), "AUTO-LAND INITIALIZING: %ds", secsLeft);
-            renderText(cx - 150, screenH - 75, GLUT_BITMAP_HELVETICA_18, alBuf);
-        } else if (autoLandPhase == 1) {
-            renderText(cx - 60, screenH - 75, GLUT_BITMAP_HELVETICA_18, "EXECUTING LANDING...");
-        }
+        glColor3f(1.0f, 0.3f, 0.3f);
+        renderText(cx - 95, screenH - 75, GLUT_BITMAP_HELVETICA_18, "AUTO-LAND: GLIDING/BRAKING");
+    } else if (autoLandFailTimer > 0.0f) {
+        glColor3f(1.0f, 0.2f, 0.0f);
+        std::string msg = "AUTO-LAND UNAVAILABLE: " + autoLandFailReason;
+        renderText(cx - 150, screenH - 75, GLUT_BITMAP_HELVETICA_18, msg);
     }
 
     if (gearAnimation < 0.95f && agl < 500.0f && !isGrounded) {
         glColor3f(1, 0, 0);
         renderText(cx - 65, cy + 140, GLUT_BITMAP_HELVETICA_18, "CHECK GEAR!");
-    } else if (flaps < 0.25f && agl < 700.0f && currentSpeed < 260.0f && !isGrounded) {
-        glColor3f(1, 0.6f, 0);
-        renderText(cx - 65, cy + 140, GLUT_BITMAP_HELVETICA_18, "EXTEND FLAPS");
     }
 
     if (engineOut) {
