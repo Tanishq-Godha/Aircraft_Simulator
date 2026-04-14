@@ -176,9 +176,13 @@ void drawHUD() {
     float fg = (fuelNorm >= 0.5f) ? 1.0f : (2.0f * fuelNorm);
     drawHorizontalBar(sysX + 40, sysY + 25, 120.0f, 10.0f, fuelNorm, fr, fg, 0.1f);
 
+    char vsiBuf[32];
+    std::snprintf(vsiBuf, sizeof(vsiBuf), "V/S %+.0f", verticalSpeed);
+    renderText(sysX, sysY + 5, GLUT_BITMAP_HELVETICA_12, vsiBuf);
+
     // Controls tip
     glColor4f(1, 1, 1, 0.6f);
-    renderText(sysX, sysY, GLUT_BITMAP_HELVETICA_10, "SPEED CTRL: R/F OR UP/DOWN");
+    renderText(sysX, sysY - 15, GLUT_BITMAP_HELVETICA_10, "SPEED CTRL: R/F OR UP/DOWN");
     glColor4f(1, 1, 1, 1);
 
     // ── 4. Indicators / Warnings (Center) ──────────────────────────────────────
@@ -212,6 +216,18 @@ void drawHUD() {
     if (engineOut) {
         glColor3f(1.0f, 0.1f, 0.1f);
         renderText(cx - 70, cy + 170, GLUT_BITMAP_HELVETICA_18, "ENGINE OUT");
+    }
+
+    if (!isGrounded) {
+        char gravityBuf[48];
+        std::snprintf(gravityBuf, sizeof(gravityBuf), "GRAV %.2fx", gravityFactor);
+        glColor3f(0.85f, 0.9f, 1.0f);
+        renderText(cx - 52, cy - 165, GLUT_BITMAP_HELVETICA_12, gravityBuf);
+    }
+
+    if (isHighAlpha && !isStalling) {
+        glColor3f(1.0f, 0.78f, 0.1f);
+        renderText(cx - 58, cy + 120, GLUT_BITMAP_HELVETICA_18, "HIGH AOA");
     }
 
     // Crosshair / Flight Director

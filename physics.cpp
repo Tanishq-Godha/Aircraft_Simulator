@@ -5,6 +5,7 @@
 #include "math_utils.h"
 #include <GL/glut.h>
 #include <cmath>
+#include <algorithm>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -16,7 +17,8 @@ const float kSimulationStep = 1.0f / 120.0f;
 const float kMaxFrameDt     = 0.05f;
 const float kMaxAirSpeed    = 920.0f;
 const float kMaxTaxiSpeed   = 300.0f;
-const float kGravity        = 180.0f;  // Game units/s² (tuned for game scale)
+const float kGravity        = 135.0f;  // Tuned gravity for a heavier but controllable flight model
+const float kMinFlightSpeed = 80.0f;
 
 const float RWY_X = 0.0f;
 const float RWY_Z = 6200.0f;
@@ -26,8 +28,58 @@ float approach(float current, float target, float rate, float dt) {
     return current + (target - current) * alpha;
 }
 
+struct GearContactProbe {
+    float localX;
+    float localZ;
+    float clearance;
+    bool  isMainGear;
+};
+
 float getGearClearance() {
     return lerp(2.0f, 12.0f, gearAnimation);
+}
+
+void worldOffsetFromLocal(float localX, float localZ, float pyaw, float& outX, float& outZ) {
+    float yRad = degToRad(pyaw);
+    outX = planeX + (localX * std::cos(yRad)) + (localZ * std::sin(yRad));
+    outZ = planeZ + (localX * std::sin(yRad)) - (localZ * std::cos(yRad));
+}
+
+float getGearProbeGroundHeight(float localX, float localZ, float pyaw) {
+    float probeX = 0.0f;
+    float probeZ = 0.0f;
+    worldOffsetFromLocal(localX, localZ, pyaw, probeX, probeZ);
+    return getSceneHeight(probeX, probeZ);
+}
+
+bool sampleGearContacts(float py, float pyaw, float& minCompression, int& mainGearContacts, bool& noseGearTouching) {
+    const GearContactProbe probes[] = {
+        {  0.0f, -2.88f, 1.30f, false },
+        { -1.06f,  1.14f, 1.62f, true  },
+        {  1.06f,  1.14f, 1.62f, true  }
+    };
+
+    minCompression  = 1.0f;
+    mainGearContacts = 0;
+    noseGearTouching = false;
+    bool anyContact = false;
+
+    for (const GearContactProbe& probe : probes) {
+        float gearBottom = py - probe.clearance;
+        float ground     = getGearProbeGroundHeight(probe.localX, probe.localZ, pyaw);
+
+        if (gearBottom <= ground) {
+            anyContact = true;
+            float penetration = ground - gearBottom;
+            float compression = clampf(penetration / (probe.clearance + 0.001f), 0.0f, 1.0f);
+            if (compression < minCompression) minCompression = compression;
+
+            if (probe.isMainGear) ++mainGearContacts;
+            else noseGearTouching = true;
+        }
+    }
+
+    return anyContact;
 }
 
 bool isLandingAligned() {
@@ -113,8 +165,8 @@ void updateTaxiPhysics(float dt) {
     float steerRate = (32.0f - (currentSpeed * 0.05f)) * (onRoad ? 1.0f : 0.7f);
     if (steerRate < 14.0f) steerRate = 14.0f;
 
-    if (keys['q']) yaw += steerRate * dt;
-    if (keys['e']) yaw -= steerRate * dt;
+    if (keys['q']) yaw -= steerRate * dt;
+    if (keys['e']) yaw += steerRate * dt;
 
     float pitchTarget = 0.0f;
     if (keys['w'])      pitchTarget =  10.0f;
@@ -132,6 +184,12 @@ void updateTaxiPhysics(float dt) {
     currentSpeed  = clampf(currentSpeed, 0.0f, kMaxTaxiSpeed);
 
     wheelRotation += currentSpeed * dt * 5.0f;
+    verticalSpeed = 0.0f;
+    gravityFactor = 1.0f;
+    isHighAlpha   = false;
+
+    if (keys['w'] && currentSpeed > 110.0f)
+        currentSpeed += 42.0f * dt;
 
     float yRad = degToRad(yaw);
     vX = std::sin(yRad)  * currentSpeed;
@@ -141,16 +199,18 @@ void updateTaxiPhysics(float dt) {
     // ── Smooth liftoff ────────────────────────────────────────────────────
     // Lower rotation speed 155 (vs. old 195) = shorter takeoff roll.
     // Removed instant planeY jump; vY ramps via approach() = smooth liftoff.
-    float rotateSpeed = 155.0f - (flaps * 40.0f);
-    if (gearAnimation > 0.97f && currentSpeed > rotateSpeed && pitch > 6.0f) {
+    float rotateSpeed = 138.0f - (flaps * 42.0f);
+    if (gearAnimation > 0.97f && currentSpeed > rotateSpeed && pitch > 3.5f) {
         isGrounded = false;
-        vY = approach(vY, 55.0f + (flaps * 20.0f), 10.0f, dt);
+        verticalSpeed = approach(verticalSpeed, 92.0f + (flaps * 30.0f), 9.0f, dt);
+        vY = verticalSpeed;
     }
 }
 
 // ─── Air physics ─────────────────────────────────────────────────────────────
 void updateAirPhysics(float dt, float agl) {
     bool apActive = autopilotOn || autoLandOn;
+    float previousVerticalSpeed = verticalSpeed;
 
     float targetRoll = 0.0f;
     float pitchInput = 0.0f;
@@ -167,8 +227,8 @@ void updateAirPhysics(float dt, float agl) {
         if (!keys['w'] && !keys['s'])
             pitch = approach(pitch, 0.0f, 1.5f, dt);
 
-        if (keys['q']) yaw += 30.0f * dt;
         if (keys['e']) yaw -= 30.0f * dt;
+        if (keys['q']) yaw += 30.0f * dt;
     }
 
     roll = approach(roll, targetRoll, 3.5f, dt);
@@ -197,6 +257,12 @@ void updateAirPhysics(float dt, float agl) {
     flapLift = flaps * 190.0f;
     flapDrag = flaps * 115.0f;
 
+    float speedRatio   = clampf(currentSpeed / kMaxAirSpeed, 0.0f, 1.15f);
+    float pitchAbs     = std::fabs(pitch);
+    float rollAbs      = std::fabs(roll);
+    float highAlphaAmt = clampf((pitchAbs - 18.0f) / 12.0f, 0.0f, 1.0f);
+    isHighAlpha        = highAlphaAmt > 0.18f;
+
     float pRad = degToRad(pitch);
     float yRad = degToRad(yaw);
 
@@ -206,30 +272,69 @@ void updateAirPhysics(float dt, float agl) {
 
     float gearDrag = gearAnimation * 42.0f;
     float abBonus  = afterburnerIntensity * 120.0f;
+    float inducedDrag = (pitchAbs * 3.2f) + (rollAbs * 0.25f) + (highAlphaAmt * 95.0f);
 
     float targetSpeed = (throttle * kMaxAirSpeed) + abBonus
-                      - (fY * 150.0f) - flapDrag - gearDrag;
+                      - (fY * 150.0f) - flapDrag - gearDrag - inducedDrag;
 
     currentSpeed = approach(currentSpeed, targetSpeed, 4.4f, dt);
-    currentSpeed = clampf(currentSpeed, 80.0f, kMaxAirSpeed + 120.0f);
+    currentSpeed = clampf(currentSpeed, kMinFlightSpeed, kMaxAirSpeed + 120.0f);
 
     float stallSpeed = 145.0f - (flaps * 30.0f) + (gearAnimation * 10.0f);
     isStalling = currentSpeed < stallSpeed && pitch > 10.0f;
 
-    // Calculate lift-based vertical velocity from pitch angle
+    float angleOfAttack = clampf(pitch, -14.0f, 20.0f);
+    float aoaNorm       = clampf((angleOfAttack + 4.0f) / 18.0f, -0.45f, 1.25f);
+    float speedSqNorm   = clampf((currentSpeed * currentSpeed) / (320.0f * 320.0f), 0.0f, 3.4f);
+    float liftCurve     = aoaNorm * (1.40f - highAlphaAmt * 0.55f);
+
+    float liftAuthority = clampf((currentSpeed - 200.0f) / 120.0f, 0.0f, 1.0f);
+    float lowSpeedFalloff = 1.0f - liftAuthority;
+    float wingLift      = speedSqNorm * 70.0f * liftCurve * (0.35f + 0.65f * liftAuthority);
+    float flapAssist    = flaps * (24.0f + currentSpeed * 0.14f) * (0.45f + 0.55f * liftAuthority);
+    float pitchClimb    = clampf(fY, -0.45f, 0.90f) * currentSpeed * (0.18f + 0.22f * liftAuthority);
+    float inducedSink   = highAlphaAmt * (18.0f + (1.0f - speedRatio) * 46.0f);
+    float bankPenalty   = rollAbs * (0.18f + 0.08f * speedRatio);
+    float dragSink      = (flapDrag * 0.10f) + (gearDrag * 0.08f);
+    float comNoseDrop   = lowSpeedFalloff * (8.0f + (pitch > 0.0f ? pitch * 1.35f : 0.0f));
+
+    gravityFactor = 1.0f
+                  + lowSpeedFalloff * 0.55f
+                  - clampf((currentSpeed - 170.0f) / 650.0f, 0.0f, 0.14f)
+                  + highAlphaAmt * 0.12f;
+    gravityFactor = clampf(gravityFactor, 0.92f, 1.62f);
+
+    float gravityPull = kGravity * gravityFactor;
+    float targetVerticalSpeed = wingLift + flapAssist + pitchClimb
+                              - gravityPull - bankPenalty - inducedSink - dragSink
+                              - (lowSpeedFalloff * 42.0f);
+
+    verticalSpeed = approach(previousVerticalSpeed, targetVerticalSpeed, 2.2f, dt);
+
+    float gravityPitchTorque = comNoseDrop * (0.75f + lowSpeedFalloff * 1.55f);
+    if (!keys['w'] || currentSpeed < 200.0f)
+        pitch -= gravityPitchTorque * dt;
+
+    if (currentSpeed < 140.0f) {
+        roll = approach(roll, 0.0f, 0.8f, dt);
+        yaw += (roll / 45.0f) * 0.18f * 30.0f * dt;
+    }
+
+    if (currentSpeed < 200.0f) {
+        float stallDrop = (200.0f - currentSpeed) / 165.0f;
+        stallDrop = clampf(stallDrop, 0.0f, 1.0f);
+        pitch = approach(pitch, -18.0f - (stallDrop * 37.0f), 0.55f + stallDrop * 0.35f, dt);
+        verticalSpeed -= (28.0f + stallDrop * 62.0f) * dt;
+    }
+
+    // Calculate full velocity vector using the gravity-driven climb/sink rate.
     vX = fX * currentSpeed;
-    vY = fY * currentSpeed + (flapLift * dt);
+    vY = verticalSpeed;
     vZ = fZ * currentSpeed;
 
-    // Apply gravity (pulling plane down when speed is low)
-    vY -= kGravity * dt;
-
-    // At high speeds, lift partially counteracts gravity
-    float liftBonus = std::max(0.0f, (currentSpeed - 150.0f) * 0.15f);
-    vY += liftBonus * dt;
-
     if (isStalling) {
-        vY -= 90.0f * dt;
+        verticalSpeed -= 90.0f * dt;
+        vY = verticalSpeed;
         roll = approach(roll, 0.0f, 1.2f, dt);
         currentSpeed = approach(currentSpeed, stallSpeed - 10.0f, 2.0f, dt);
     }
@@ -238,8 +343,10 @@ void updateAirPhysics(float dt, float agl) {
         agl < 250.0f && !keys['s'] && !apActive)
         pitch = approach(pitch, 8.0f, 2.4f, dt);
 
-    if (flaps > 0.45f && agl < 2500.0f)
-        vY += (-45.0f - vY) * 0.02f;
+    if (flaps > 0.45f && agl < 2500.0f) {
+        verticalSpeed += (-45.0f - verticalSpeed) * 0.02f;
+        vY = verticalSpeed;
+    }
 
     if (gearAnimation > 0.01f)
         wheelRotation += currentSpeed * dt * 0.35f;
@@ -268,7 +375,10 @@ void doFullReset() {
     throttle = 0.0f;
     pitch = 0.0f; roll = 0.0f; yaw = 0.0f;
     vX = 0.0f; vY = 0.0f; vZ = 0.0f;
+    verticalSpeed = 0.0f;
+    gravityFactor = 1.0f;
     isStalling = false;
+    isHighAlpha = false;
 
     afterburnerOn        = false;
     afterburnerIntensity = 0.0f;
@@ -389,6 +499,7 @@ void simulatePhysics(float dt) {
     planeX += vX * dt;
     planeY += vY * dt;
     planeZ += vZ * dt;
+    verticalSpeed = vY;
 
     float newGround = getMaxSceneHeightUnderPlane(planeX, planeZ, yaw);
     float clearance = getGearClearance();
@@ -398,6 +509,7 @@ void simulatePhysics(float dt) {
             crashed = true;
             currentSpeed = 0.0f;
             vX = vY = vZ = 0.0f;
+            verticalSpeed = 0.0f;
         }
         return;
     }
@@ -409,23 +521,44 @@ void simulatePhysics(float dt) {
         float baseGround    = getVoxelHeight(planeX, planeZ);
         bool  onValidRunway = (newGround - baseGround < 20.0f);
 
-        bool safeTouchdown = isSafeLanding(sinkRate) && onValidRunway;
-        bool hardTouchdown = isHardLanding(sinkRate) && onValidRunway;
+        float minCompression = 1.0f;
+        int mainGearContacts = 0;
+        bool noseGearTouching = false;
+        bool gearHit = gearAnimation > 0.97f &&
+                       sampleGearContacts(planeY, yaw, minCompression, mainGearContacts, noseGearTouching);
 
-        if (safeTouchdown || hardTouchdown) {
+        bool mainsSettled = mainGearContacts >= 2;
+        bool safeTouchdown = isSafeLanding(sinkRate) && onValidRunway && mainsSettled;
+        bool hardTouchdown = isHardLanding(sinkRate) && onValidRunway && mainsSettled;
+
+        if (gearHit && (safeTouchdown || hardTouchdown)) {
             isGrounded = true;
-            planeY = newGround + clearance;
+            planeY = std::max(newGround + clearance, planeY + (minCompression * 0.35f));
             vY     = 0.0f;
+            verticalSpeed = 0.0f;
+            gravityFactor = 1.0f;
             roll   = hardTouchdown ? 2.0f : 1.0f;
+            pitch  = noseGearTouching ? approach(pitch, 0.0f, 3.6f, dt)
+                                      : clampf(pitch, -2.0f, 8.0f);
             suspension = hardTouchdown
                        ? clampf(sinkRate * 0.006f,  0.18f, 0.60f)
                        : clampf(sinkRate * 0.0045f, 0.08f, 0.35f);
-            currentSpeed *= hardTouchdown ? 0.88f : 0.94f;
+            currentSpeed *= hardTouchdown ? 0.90f : 0.95f;
+        } else if (gearHit && mainsSettled && sinkRate < 150.0f && onValidRunway) {
+            isGrounded = true;
+            planeY = newGround + clearance;
+            verticalSpeed = 0.0f;
+            vY = 0.0f;
+            gravityFactor = 1.0f;
+            suspension = clampf(sinkRate * 0.004f, 0.06f, 0.28f);
+            pitch = clampf(pitch, -1.5f, 7.0f);
+            currentSpeed *= 0.94f;
         } else {
             crashed = true;
             planeY  = newGround + clearance;
             currentSpeed = 0.0f;
             vX = vY = vZ = 0.0f;
+            verticalSpeed = 0.0f;
         }
     }
 
@@ -435,7 +568,10 @@ void simulatePhysics(float dt) {
             isGrounded = false;
         } else {
             planeY     = targetPlaneY;
+            verticalSpeed = 0.0f;
+            gravityFactor = 1.0f;
             isStalling = false;
+            isHighAlpha = false;
         }
     }
 

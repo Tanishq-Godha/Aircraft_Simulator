@@ -14,9 +14,12 @@ extern float deltaTime; // Global frame time
 extern float planeX, planeY, planeZ;
 extern float pitch, roll, yaw;
 extern float vX, vY, vZ;
+extern float verticalSpeed;
+extern float gravityFactor;
 extern float throttle;
 extern float currentSpeed;
 extern bool isStalling;
+extern bool isHighAlpha;
 extern bool gearDeployed;
 extern bool gearInTransition;
 extern bool isGrounded;
@@ -77,4 +80,3 @@ extern float screenFade;
 extern int weatherMode;
 
 #endif
-

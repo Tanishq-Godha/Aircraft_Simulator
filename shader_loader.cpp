@@ -85,6 +85,9 @@ GLuint loadShadersFromSource(const char* vertex_source, const char* fragment_sou
         std::vector<char> VertexShaderErrorMessage(InfoLogLength + 1);
         glGetShaderInfoLog(VertexShaderID, InfoLogLength, NULL, &VertexShaderErrorMessage[0]);
         std::cerr << "Vertex Shader Error: " << &VertexShaderErrorMessage[0] << std::endl;
+        glDeleteShader(VertexShaderID);
+        glDeleteShader(FragmentShaderID);
+        return 0;
     }
 
     // Compile Fragment Shader
@@ -96,6 +99,9 @@ GLuint loadShadersFromSource(const char* vertex_source, const char* fragment_sou
         std::vector<char> FragmentShaderErrorMessage(InfoLogLength + 1);
         glGetShaderInfoLog(FragmentShaderID, InfoLogLength, NULL, &FragmentShaderErrorMessage[0]);
         std::cerr << "Fragment Shader Error: " << &FragmentShaderErrorMessage[0] << std::endl;
+        glDeleteShader(VertexShaderID);
+        glDeleteShader(FragmentShaderID);
+        return 0;
     }
 
     // Link the program
@@ -110,6 +116,9 @@ GLuint loadShadersFromSource(const char* vertex_source, const char* fragment_sou
         std::vector<char> ProgramErrorMessage(InfoLogLength + 1);
         glGetProgramInfoLog(ProgramID, InfoLogLength, NULL, &ProgramErrorMessage[0]);
         std::cerr << "Program Link Error: " << &ProgramErrorMessage[0] << std::endl;
+        glDeleteShader(VertexShaderID);
+        glDeleteShader(FragmentShaderID);
+        return 0;
     }
 
     glDeleteShader(VertexShaderID);

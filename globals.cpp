@@ -8,10 +8,13 @@ float deltaTime = 0.0f;
 float planeX = 0.0f, planeY = 412.0f, planeZ = 6200.0f;
 float pitch = 0.0f, roll = 0.0f, yaw = 0.0f;
 float vX = 0.0f, vY = 0.0f, vZ = 0.0f;
+float verticalSpeed = 0.0f;
+float gravityFactor = 1.0f;
 
 float throttle = 0.0f;
 float currentSpeed = 0.0f;
 bool isStalling = false;
+bool isHighAlpha = false;
 
 bool gearDeployed = true;
 bool gearInTransition = false;
@@ -66,4 +69,3 @@ float screenFade = 0.0f;
 
 // Weather control (0=Dynamic, 1=Clear, 2=Cloudy, 3=Foggy)
 int weatherMode = 0;
-

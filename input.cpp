@@ -81,7 +81,10 @@ void keyDown(unsigned char key, int, int) {
         vX = 0.0f;
         vY = 0.0f;
         vZ = 0.0f;
+        verticalSpeed = 0.0f;
+        gravityFactor = 1.0f;
         isStalling = false;
+        isHighAlpha = false;
 
         afterburnerOn        = false;
         afterburnerIntensity  = 0.0f;
