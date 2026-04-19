@@ -126,7 +126,3 @@ This project is configured to be built on Windows using the **MSYS2 (MinGW-w64)*
 
 
 ---
-
-## 📝 License
-
-Distributed under the MIT License. See `LICENSE` for more information.
