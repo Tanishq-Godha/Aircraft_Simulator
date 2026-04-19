@@ -11,11 +11,20 @@ A comprehensive C++ and OpenGL-based flight simulator featuring custom shaders, 
 ## 📸 Gallery
 
 <p align="center">
-  <img src="docs/screenshots/gameplay1_placeholder.png" width="48%" alt="Gameplay image 1 showing the aircraft over terrain">
-  <img src="docs/screenshots/gameplay2_placeholder.png" width="48%" alt="Gameplay image 2 showing the HUD and cockpit view">
+  <img src="docs/screenshots/shot1.png" width="32%" alt="Loading the simulator and initial setup">
+  <img src="docs/screenshots/shot2.png" width="32%" alt="Early atmospheric rendering and flight mechanics">
+  <img src="docs/screenshots/shot3.png" width="32%" alt="High-altitude cruise above procedural terrain">
 </p>
-
-> **Note:** *(Replace the image paths above with actual screenshot links after capturing them in-game!)*
+<p align="center">
+  <img src="docs/screenshots/shot4.png" width="32%" alt="Cockpit view featuring basic heads-up display">
+  <img src="docs/screenshots/shot5.png" width="32%" alt="Exploring lighting conditions across the dynamic sky">
+  <img src="docs/screenshots/shot6.png" width="32%" alt="Maneuvering with pitch and roll physics">
+</p>
+<p align="center">
+  <img src="docs/screenshots/shot7.png" width="32%" alt="Detailed shadow rendering and jet modeling">
+  <img src="docs/screenshots/shot8.png" width="32%" alt="Entering high-speed cruise through cloud zones">
+  <img src="docs/screenshots/shot9.png" width="32%" alt="Nearing the ground for approach and landing">
+</p>
 
 ---
 
