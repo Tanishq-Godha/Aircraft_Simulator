@@ -107,18 +107,6 @@ This project is configured to be built on Windows using the **MSYS2 (MinGW-w64)*
 
 *(Refer to the in-game Controls menu for a complete and up-to-date mapping).*
 
----
-
-## 🤝 Contributing
-
-Contributions, issues, and feature requests are welcome! 
-Feel free to check [issues page](https://github.com/Tanishq-Godha/Aircraft_Simulator/issues).
-
-1. Fork the Project
-2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the Branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
 
 ---
 
