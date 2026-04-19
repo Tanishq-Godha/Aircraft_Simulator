@@ -2,7 +2,6 @@
 
 A comprehensive C++ and OpenGL-based flight simulator featuring custom shaders, physics, atmospheric rendering, and full gamepad support.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![C++](https://img.shields.io/badge/C++-17-blue.svg)](https://isocpp.org/)
 [![OpenGL](https://img.shields.io/badge/OpenGL-3.3+-green.svg)](https://www.opengl.org/)
 
