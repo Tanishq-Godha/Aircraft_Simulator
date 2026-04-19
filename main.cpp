@@ -51,8 +51,7 @@ void display() {
 
             // Draw objects that cast shadows
             drawVoxelTerrain();
-            drawJet();
-
+        drawTwinTowers();
             glPopMatrix();
             glMatrixMode(GL_PROJECTION);
             glPopMatrix();
@@ -87,6 +86,7 @@ void display() {
             gShadows.bindMainPass(lx, ly, lz, camMatrix, weather, skyColor[0], skyColor[1], skyColor[2]);
         }
         drawVoxelTerrain();
+        drawTwinTowers();
         drawJet();
         drawExplosionAndSparks();
 
@@ -122,6 +122,10 @@ void mainLoop() {
     
     // Clamp deltaTime to prevent huge jumps (e.g. from moving the window)
     if (deltaTime > 0.05f) deltaTime = 0.05f;
+
+#ifdef _WIN32
+    updateControllerInput();
+#endif
 
     updatePhysics();
 }
