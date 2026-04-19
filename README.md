@@ -28,12 +28,12 @@ A comprehensive C++ and OpenGL-based flight simulator featuring custom shaders, 
 
 ## 🎥 Gameplay Demo
 
-<video src="docs/videos/Aircraft_Demo.mp4" controls="controls" width="100%">
+<video src="https://raw.githubusercontent.com/Tanishq-Godha/Aircraft_Simulator/master/docs/videos/Aircraft_Demo.mp4" controls="controls" width="100%">
   Your browser does not support the video tag.
-  <a href="docs/videos/Aircraft_Demo.mp4">Click here to download the demo video.</a>
+  <a href="https://raw.githubusercontent.com/Tanishq-Godha/Aircraft_Simulator/master/docs/videos/Aircraft_Demo.mp4">Click here to download the demo video.</a>
 </video>
 
-> **View the Video natively**: [Download / Watch `Aircraft_Demo.mp4`](https://github.com/Tanishq-Godha/Aircraft_Simulator/raw/master/docs/videos/Aircraft_Demo.mp4) 
+> **View the Video natively**: [Download / Watch `Aircraft_Demo.mp4`](https://github.com/Tanishq-Godha/Aircraft_Simulator/blob/master/docs/videos/Aircraft_Demo.mp4) 
 
 ---
 
