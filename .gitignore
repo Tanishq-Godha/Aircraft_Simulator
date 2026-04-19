@@ -1,5 +1,2 @@
-*.o
-*.exe
-bin/
-obj/
-.vs/
+*.*.mp4
+*.o *.exe bin/ obj/ .vs/
