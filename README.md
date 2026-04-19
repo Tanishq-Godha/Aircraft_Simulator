@@ -28,11 +28,12 @@ A comprehensive C++ and OpenGL-based flight simulator featuring custom shaders, 
 
 ## 🎥 Gameplay Demo
 
-<video src="https://github.com/user-attachments/assets/github-video-placeholder" controls="controls" width="100%">
+<video src="docs/videos/Aircraft_Demo.mp4" controls="controls" width="100%">
   Your browser does not support the video tag.
+  <a href="docs/videos/Aircraft_Demo.mp4">Click here to download the demo video.</a>
 </video>
 
-> **Note**: *You can attach the actual video (`Aircraft_Demo.mp4`) directly inside GitHub by clicking "Edit" on the README.md in the GitHub web UI, deleting the video placeholder tag above, and dragging the video file directly into the editor. GitHub will host it automatically on their `user-attachments` CDN, bypassing the 100MB repository limit.*
+> **View the Video natively**: [Download / Watch `Aircraft_Demo.mp4`](https://github.com/Tanishq-Godha/Aircraft_Simulator/raw/master/docs/videos/Aircraft_Demo.mp4) 
 
 ---
 
